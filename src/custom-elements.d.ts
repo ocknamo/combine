@@ -1,7 +1,7 @@
 import type { HTMLAttributes } from 'svelte/elements';
 
 type NostrElementAttributes = HTMLAttributes<HTMLElement> & {
-  relays?: string;
+  relays?: string | string[];
   filters?: string;
   theme?: string;
   limit?: string | number;

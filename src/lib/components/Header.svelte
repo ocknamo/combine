@@ -1,11 +1,14 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
+import { DEFAULT_RELAYS } from '../relays';
 import { router } from '../router.svelte';
+
+const iconUrl = `${import.meta.env.BASE_URL}icon.png`;
 </script>
 
 <header>
   <a class="brand" href="#/" aria-label="ホームへ">
-    <img src="/icon.png" alt="" width="28" height="28" />
+    <img src={iconUrl} alt="" width="28" height="28" />
     <span>combine</span>
   </a>
   {#if !auth.loggedIn}
@@ -14,7 +17,12 @@ import { router } from '../router.svelte';
     </button>
   {:else}
     <button class="ghost" onclick={() => router.go('/profile')} aria-label="プロフィール">
-      <nostr-profile user={auth.pubkey ?? undefined} display="name" nolink="true"></nostr-profile>
+      <nostr-profile
+        user={auth.pubkey ?? undefined}
+        relays={DEFAULT_RELAYS}
+        display="name"
+        nolink="true"
+      ></nostr-profile>
     </button>
   {/if}
 </header>

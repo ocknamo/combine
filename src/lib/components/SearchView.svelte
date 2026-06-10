@@ -1,6 +1,6 @@
 <script lang="ts">
 import { toHexPubkey } from '../nip19';
-import { RELAYS_ATTR } from '../relays';
+import { DEFAULT_RELAYS } from '../relays';
 
 type Result =
   | { kind: 'user'; user: string; hex: string | null }
@@ -49,18 +49,18 @@ function search(event: SubmitEvent) {
         <h2>#{result.tag}</h2>
         <nostr-list
           filters={JSON.stringify([{ kinds: [1], '#t': [result.tag], limit: 30 }])}
-          relays={RELAYS_ATTR}
+          relays={DEFAULT_RELAYS}
           theme="light"
         ></nostr-list>
       {:else if result.kind === 'note'}
-        <nostr-note nevent={result.id} relays={RELAYS_ATTR} theme="light"></nostr-note>
+        <nostr-note nevent={result.id} relays={DEFAULT_RELAYS} theme="light"></nostr-note>
       {:else}
-        <nostr-profile user={result.user} relays={RELAYS_ATTR} display="card"></nostr-profile>
+        <nostr-profile user={result.user} relays={DEFAULT_RELAYS} display="card"></nostr-profile>
         {#if result.hex}
           <h2>投稿</h2>
           <nostr-list
             filters={JSON.stringify([{ kinds: [1], authors: [result.hex], limit: 30 }])}
-            relays={RELAYS_ATTR}
+            relays={DEFAULT_RELAYS}
             theme="light"
           ></nostr-list>
         {/if}

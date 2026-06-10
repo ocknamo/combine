@@ -1,7 +1,7 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
 import { fetchFollows } from '../follows';
-import { DEFAULT_RELAYS, RELAYS_ATTR } from '../relays';
+import { DEFAULT_RELAYS } from '../relays';
 
 type Feed = 'follows' | 'global';
 let feed = $state<Feed>('global');
@@ -62,7 +62,7 @@ const filters = $derived.by(() => {
   {/if}
 
   {#key filters}
-    <nostr-stream filters={filters} relays={RELAYS_ATTR} theme="light" limit="30"></nostr-stream>
+    <nostr-stream filters={filters} relays={DEFAULT_RELAYS} theme="light" limit="30"></nostr-stream>
   {/key}
 </section>
 

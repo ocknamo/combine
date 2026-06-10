@@ -2,10 +2,12 @@
 import { auth } from '../auth.svelte';
 
 let { message = 'この機能を使うにはログインが必要です。' }: { message?: string } = $props();
+
+const logoUrl = `${import.meta.env.BASE_URL}logo.png`;
 </script>
 
 <div class="gate">
-  <img src="/logo.png" alt="combine" width="160" />
+  <img src={logoUrl} alt="combine" width="160" />
   <p>{message}</p>
   <button class="primary" onclick={() => auth.login()} disabled={auth.busy}>
     {auth.busy ? '接続中…' : 'パスキーでログイン'}

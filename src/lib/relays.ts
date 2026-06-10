@@ -6,5 +6,6 @@ export const DEFAULT_RELAYS = [
   'wss://yabu.me',
 ];
 
-/** JSON form for nostr-web-components `relays` attributes. */
-export const RELAYS_ATTR = JSON.stringify(DEFAULT_RELAYS);
+// NOTE: pass DEFAULT_RELAYS to nostr-web-components as an array property
+// (relays={DEFAULT_RELAYS}), not as a JSON attribute string: nostr-list@0.3.0
+// does not parse a string and would treat each character as a relay URL.
