@@ -1,0 +1,125 @@
+:root {
+  /* combine brand palette (from logo) */
+  --gold: #a08433;
+  --gold-strong: #8a7026;
+  --olive: #8a8b4f;
+  --bg: #fdfdfa;
+  --bg-subtle: #f6f4ec;
+  --text: #2b2620;
+  --text-muted: #847b66;
+  --border: #e6e2d4;
+  --danger: #b04a3a;
+
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+}
+
+a {
+  color: var(--gold-strong);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.45rem 1rem;
+}
+
+button:hover {
+  background: var(--bg-subtle);
+}
+
+button.primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+}
+
+button.primary:hover {
+  background: var(--gold-strong);
+  border-color: var(--gold-strong);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input[type="text"],
+input[type="search"] {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.45rem 0.75rem;
+  width: 100%;
+}
+
+input[type="text"]:focus,
+input[type="search"]:focus {
+  outline: 2px solid var(--gold);
+  outline-offset: -1px;
+  border-color: var(--gold);
+}
+
+/* Nosskey signing iframe overlay: the iframe toggles its own display,
+   the backdrop follows via the `visible` class set from JS. */
+.nosskey-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  pointer-events: none;
+  background: transparent;
+}
+
+.nosskey-overlay.visible {
+  pointer-events: auto;
+  background: rgba(43, 38, 32, 0.45);
+}
+
+.nosskey-overlay iframe {
+  width: min(420px, 100%);
+  height: min(560px, 90vh);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  pointer-events: auto;
+}
