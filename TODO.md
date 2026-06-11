@@ -43,6 +43,10 @@
     取得できない場合は `DEFAULT_RELAYS` にフォールバック（`readRelaysFrom()`）。
   - 全ビュー（Home / Profile / Search / Notifications / Header）と `fetchFollows` が
     `auth.relays` を参照するようになった。
-  - 残課題: write リレーは現状 read と区別して使っていない（publish 機能が無いため）。
-    publish 実装時に write リレーの利用を検討する。
+  - 残課題（write リレー）: 投稿（publish）は combine 自身ではなく **埋め込みの eHagaki に委譲**
+    しており（combine は pubkey 提供と `signEvent` のみ、publish と publish 先リレーは eHagaki 側）、
+    `ehagaki.embed` プロトコルに combine → eHagaki へリレーを渡す手段が無い。
+    そのため `getRelays()` の write リレーは現状どこにも使われていない。
+    ユーザーの write リレーで publish させるには **eHagaki 側プロトコルの拡張提案**（例: `composer.setContext`
+    で `relays` を渡す）が必要。
   - 補足: NIP-65（kind 10002）の自分のリレーリストをリレーから取得する案も併用検討可。
