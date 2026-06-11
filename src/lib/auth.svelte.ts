@@ -1,4 +1,5 @@
 import { NosskeyIframeClient, NosskeyIframeError, type NostrEvent } from 'nosskey-iframe';
+import { DEFAULT_RELAYS, readRelaysFrom } from './relays';
 
 const NOSSKEY_IFRAME_URL = 'https://nosskey.app/#/iframe';
 const STORAGE_KEY = 'combine:pubkey';
@@ -21,6 +22,11 @@ class AuthStore {
   error = $state<string | null>(null);
   /** True when the user has no passkey yet and must onboard at nosskey.app. */
   needsOnboarding = $state(false);
+  /**
+   * Relays the views should read from. Starts at {@link DEFAULT_RELAYS} and is
+   * replaced with the signed-in user's relays (NIP-07 `getRelays()`) on login.
+   */
+  relays = $state<string[]>(DEFAULT_RELAYS);
 
   #client: NosskeyIframeClient | null = null;
   #observer: MutationObserver | null = null;
@@ -59,6 +65,8 @@ class AuthStore {
       const pubkey = await client.getPublicKey();
       this.pubkey = pubkey;
       localStorage.setItem(STORAGE_KEY, pubkey);
+      // Relay discovery is best-effort and must not block the login result.
+      void this.refreshRelays();
     } catch (err) {
       if (err instanceof NosskeyIframeError && err.code === 'NO_KEY') {
         this.needsOnboarding = true;
@@ -77,7 +85,24 @@ class AuthStore {
     this.pubkey = null;
     this.error = null;
     this.needsOnboarding = false;
+    this.relays = DEFAULT_RELAYS;
     localStorage.removeItem(STORAGE_KEY);
+  }
+
+  /**
+   * Load the signed-in user's relays from the Nosskey iframe (`getRelays()`).
+   * Best-effort: keeps the current relays on failure and never prompts the
+   * user. Safe to call on startup for a restored session.
+   */
+  async refreshRelays(): Promise<void> {
+    if (!this.pubkey) return;
+    try {
+      const client = this.#getClient();
+      await client.ready();
+      this.relays = readRelaysFrom(await client.getRelays());
+    } catch {
+      // Relay discovery is best-effort; keep whatever relays we already have.
+    }
   }
 
   /** Sign an event via the Nosskey iframe (shows its consent dialog). */

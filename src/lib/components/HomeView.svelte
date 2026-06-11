@@ -1,7 +1,6 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
 import { fetchFollows } from '../follows';
-import { DEFAULT_RELAYS } from '../relays';
 
 type Feed = 'follows' | 'global';
 let feed = $state<Feed>('global');
@@ -16,7 +15,7 @@ $effect(() => {
     return;
   }
   loadingFollows = true;
-  fetchFollows(pubkey, DEFAULT_RELAYS)
+  fetchFollows(pubkey, auth.relays)
     .then((result) => {
       follows = result;
       if (result.length > 0) feed = 'follows';
@@ -62,7 +61,7 @@ const filters = $derived.by(() => {
   {/if}
 
   {#key filters}
-    <nostr-stream filters={filters} relays={DEFAULT_RELAYS} theme="light" limit="30"></nostr-stream>
+    <nostr-stream filters={filters} relays={auth.relays} theme="light" limit="30"></nostr-stream>
   {/key}
 
   <p class="credit">

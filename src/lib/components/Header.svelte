@@ -1,6 +1,5 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
-import { DEFAULT_RELAYS } from '../relays';
 import { router } from '../router.svelte';
 
 const iconUrl = `${import.meta.env.BASE_URL}icon.png`;
@@ -19,7 +18,7 @@ const iconUrl = `${import.meta.env.BASE_URL}icon.png`;
     <button class="ghost" onclick={() => router.go('/profile')} aria-label="プロフィール">
       <nostr-profile
         user={auth.pubkey ?? undefined}
-        relays={DEFAULT_RELAYS}
+        relays={auth.relays}
         display="name"
         nolink="true"
         theme="light"

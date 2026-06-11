@@ -1,7 +1,6 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
 import { toHexPubkey, toNpub } from '../nip19';
-import { DEFAULT_RELAYS } from '../relays';
 import { toast } from '../toast.svelte';
 import LoginGate from './LoginGate.svelte';
 
@@ -23,7 +22,7 @@ async function copyNpub() {
   {:else if !hex}
     <p class="empty">ユーザーが見つかりませんでした。</p>
   {:else}
-    <nostr-profile user={hex} relays={DEFAULT_RELAYS} display="card" nolink="true" theme="light"></nostr-profile>
+    <nostr-profile user={hex} relays={auth.relays} display="card" nolink="true" theme="light"></nostr-profile>
 
     <div class="meta">
       {#if npub}
@@ -40,7 +39,7 @@ async function copyNpub() {
     {#key hex}
       <nostr-list
         filters={JSON.stringify([{ kinds: [1], authors: [hex], limit: 30 }])}
-        relays={DEFAULT_RELAYS}
+        relays={auth.relays}
         theme="light"
       ></nostr-list>
     {/key}

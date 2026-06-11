@@ -1,6 +1,5 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
-import { DEFAULT_RELAYS } from '../relays';
 import LoginGate from './LoginGate.svelte';
 
 // Mentions, reposts, reactions, zaps addressed to me.
@@ -12,7 +11,7 @@ const filters = $derived(
 <section>
   {#if filters}
     {#key filters}
-      <nostr-list filters={filters} relays={DEFAULT_RELAYS} theme="light" limit="50"></nostr-list>
+      <nostr-list filters={filters} relays={auth.relays} theme="light" limit="50"></nostr-list>
     {/key}
   {:else}
     <LoginGate message="通知を表示するにはログインが必要です。" />
