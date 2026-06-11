@@ -23,7 +23,7 @@ async function copyNpub() {
   {:else if !hex}
     <p class="empty">ユーザーが見つかりませんでした。</p>
   {:else}
-    <nostr-profile user={hex} relays={DEFAULT_RELAYS} display="card" nolink="true"></nostr-profile>
+    <nostr-profile user={hex} relays={DEFAULT_RELAYS} display="card" nolink="true" theme="light"></nostr-profile>
 
     <div class="meta">
       {#if npub}
