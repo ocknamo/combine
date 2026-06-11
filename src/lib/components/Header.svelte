@@ -22,6 +22,7 @@ const iconUrl = `${import.meta.env.BASE_URL}icon.png`;
         relays={DEFAULT_RELAYS}
         display="name"
         nolink="true"
+        theme="light"
       ></nostr-profile>
     </button>
   {/if}

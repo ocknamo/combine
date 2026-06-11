@@ -64,6 +64,12 @@ const filters = $derived.by(() => {
   {#key filters}
     <nostr-stream filters={filters} relays={DEFAULT_RELAYS} theme="light" limit="30"></nostr-stream>
   {/key}
+
+  <p class="credit">
+    タイムラインやプロフィールの表示には
+    <a href="https://github.com/TsukemonoGit/nostr-web-components" target="_blank" rel="noreferrer">Nostr Web Components</a>
+    を使用しています。
+  </p>
 </section>
 
 <style>
@@ -97,5 +103,14 @@ const filters = $derived.by(() => {
     text-align: center;
     color: var(--text-muted);
     padding: 2rem 1rem;
+  }
+
+  .credit {
+    margin: 0;
+    padding: 0.6rem 1rem calc(0.6rem + env(safe-area-inset-bottom));
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    text-align: center;
   }
 </style>

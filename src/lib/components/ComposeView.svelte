@@ -170,11 +170,13 @@ function clearContext() {
     font-family: var(--mono);
   }
 
+  /* Fixed, top-aligned height so the eHagaki post button stays visible
+     when the mobile keyboard is open. Empty space below the iframe is fine. */
   iframe {
     border: none;
     width: 100%;
-    flex: 1;
-    min-height: 480px;
+    flex: 0 0 auto;
+    height: 420px;
   }
 
   .credit {
