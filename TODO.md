@@ -37,11 +37,12 @@
 
 ## リレー設定
 
-- [ ] **ユーザーのリレー設定を nosskey.app から取得して使う**
-  - 現状、全ビューが `src/lib/relays.ts` のハードコード `DEFAULT_RELAYS` を使用しており、
-    ユーザー個別のリレー設定を反映していない。
-  - `nosskey-iframe` の `NosskeyIframeClient` は **`getRelays()`（NIP-07、url→{read, write} のマップ）を実装済み**だが、
-    `auth.svelte.ts` から呼んでいない。
-  - → ログイン後に `client.getRelays()` を呼び、取得したリレーを（必要なら `DEFAULT_RELAYS` とマージして）
-    各コンポーネントに渡すようにする。
+- [x] **ユーザーのリレー設定を nosskey.app から取得して使う**（対応済み）
+  - ログイン時（および localStorage から復元したセッションの起動時）に
+    `client.getRelays()` を呼び、ユーザーの read リレーを `auth.relays` に反映する。
+    取得できない場合は `DEFAULT_RELAYS` にフォールバック（`readRelaysFrom()`）。
+  - 全ビュー（Home / Profile / Search / Notifications / Header）と `fetchFollows` が
+    `auth.relays` を参照するようになった。
+  - 残課題: write リレーは現状 read と区別して使っていない（publish 機能が無いため）。
+    publish 実装時に write リレーの利用を検討する。
   - 補足: NIP-65（kind 10002）の自分のリレーリストをリレーから取得する案も併用検討可。

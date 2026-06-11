@@ -1,4 +1,5 @@
 <script lang="ts">
+import { onMount } from 'svelte';
 import { auth } from './lib/auth.svelte';
 import ComposeView from './lib/components/ComposeView.svelte';
 import Header from './lib/components/Header.svelte';
@@ -11,6 +12,12 @@ import { router } from './lib/router.svelte';
 import { toast } from './lib/toast.svelte';
 
 const route = $derived(router.current);
+
+// A session restored from localStorage never runs login(), so pull the user's
+// relays here too.
+onMount(() => {
+  if (auth.loggedIn) void auth.refreshRelays();
+});
 </script>
 
 <div class="app">
