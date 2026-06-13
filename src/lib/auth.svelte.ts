@@ -30,6 +30,17 @@ class AuthStore {
 
   #client: NosskeyIframeClient | null = null;
   #observer: MutationObserver | null = null;
+  #overlay: HTMLElement | null = null;
+  #reconciling = false;
+
+  constructor() {
+    // Re-check the signing session whenever the user returns to this tab, so an
+    // account switch (or logout) performed at nosskey.app is reflected here
+    // without a full page reload. See {@link reconcileSession}.
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.#onVisibilityChange);
+    }
+  }
 
   get loggedIn(): boolean {
     return this.pubkey !== null;
@@ -51,7 +62,22 @@ class AuthStore {
     });
     this.#observer.observe(client.iframe, { attributes: true, attributeFilter: ['style'] });
     this.#client = client;
+    this.#overlay = overlay;
     return client;
+  }
+
+  /**
+   * Tear down the signing iframe and its overlay. The iframe caches the active
+   * account in memory for its whole lifetime, so a fresh one must be mounted to
+   * observe an account that was switched at nosskey.app. No-op when none exists.
+   */
+  #destroyClient(): void {
+    this.#observer?.disconnect();
+    this.#observer = null;
+    this.#client?.destroy();
+    this.#client = null;
+    this.#overlay?.remove();
+    this.#overlay = null;
   }
 
   async login(): Promise<void> {
@@ -60,6 +86,9 @@ class AuthStore {
     this.error = null;
     this.needsOnboarding = false;
     try {
+      // Start from a fresh iframe so a switch made at nosskey.app is picked up
+      // without a page reload (the previous iframe holds the old account).
+      this.#destroyClient();
       const client = this.#getClient();
       await client.ready();
       const pubkey = await client.getPublicKey();
@@ -102,6 +131,46 @@ class AuthStore {
       this.relays = readRelaysFrom(await client.getRelays());
     } catch {
       // Relay discovery is best-effort; keep whatever relays we already have.
+    }
+  }
+
+  #onVisibilityChange = (): void => {
+    if (document.visibilityState === 'visible') void this.reconcileSession();
+  };
+
+  /**
+   * Re-check which account nosskey.app is signed in as and reconcile it with the
+   * local session. Mounts a fresh iframe (the live one caches the account for
+   * its lifetime) and:
+   *  - adopts the new pubkey if the account was switched elsewhere,
+   *  - logs out if nosskey.app reports no key (signed out elsewhere).
+   *
+   * Best-effort and silent: transient errors keep the current session, and it
+   * does nothing while signed out (a fresh {@link login} handles that case).
+   */
+  async reconcileSession(): Promise<void> {
+    if (!this.loggedIn || this.busy || this.#reconciling) return;
+    this.#reconciling = true;
+    try {
+      this.#destroyClient();
+      const client = this.#getClient();
+      await client.ready();
+      const pubkey = await client.getPublicKey();
+      if (pubkey !== this.pubkey) {
+        this.pubkey = pubkey;
+        localStorage.setItem(STORAGE_KEY, pubkey);
+        this.error = null;
+        this.needsOnboarding = false;
+        void this.refreshRelays();
+      }
+    } catch (err) {
+      // NO_KEY means the user signed out at nosskey.app; drop our session too.
+      // Other errors (timeout, network) are transient — keep what we have.
+      if (err instanceof NosskeyIframeError && err.code === 'NO_KEY') {
+        this.logout();
+      }
+    } finally {
+      this.#reconciling = false;
     }
   }
 
