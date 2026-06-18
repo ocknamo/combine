@@ -1,6 +1,7 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
 import { toHexPubkey } from '../nip19';
+import { truncateName } from '../truncateName';
 
 type Result =
   | { kind: 'user'; user: string; hex: string | null }
@@ -55,7 +56,7 @@ function search(event: SubmitEvent) {
       {:else if result.kind === 'note'}
         <nostr-note nevent={result.id} relays={auth.relays} theme="light"></nostr-note>
       {:else}
-        <nostr-profile user={result.user} relays={auth.relays} display="card"></nostr-profile>
+        <nostr-profile use:truncateName={'card'} user={result.user} relays={auth.relays} display="card"></nostr-profile>
         {#if result.hex}
           <h2>投稿</h2>
           <nostr-list

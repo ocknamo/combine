@@ -1,6 +1,7 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
 import { router } from '../router.svelte';
+import { truncateName } from '../truncateName';
 
 const iconUrl = `${import.meta.env.BASE_URL}icon.png`;
 </script>
@@ -17,6 +18,7 @@ const iconUrl = `${import.meta.env.BASE_URL}icon.png`;
   {:else}
     <button class="ghost" onclick={() => router.go('/profile')} aria-label="プロフィール">
       <nostr-profile
+        use:truncateName={'name'}
         user={auth.pubkey ?? undefined}
         relays={auth.relays}
         display="name"
