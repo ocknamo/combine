@@ -8,19 +8,19 @@ import type { Action } from 'svelte/action';
  *
  * - mode "name" (`<nostr-profile display="name">`): with `nolink`, the name is a
  *   bare text node on the host, so we constrain the host box itself. The width cap
- *   (~12 文字相当) is tunable via the `--combine-name-max` custom property.
+ *   は全角約12文字相当（`12em`）。`--combine-name-max` で調整可能。
  * - mode "card" (`<nostr-profile display="card">`): the name lives in
  *   `.profile-header`, so we clip that element at the available card width.
  *
- * 文字数ではなく幅ベースの省略のため、全角（日本語）名は 12 文字より手前で切れる
- * ことがあります。
+ * 文字数ではなく幅ベースの省略です。全角1文字 ≒ 1em なので全角名は約12文字で
+ * 切れます。半角名は1文字 ≒ 0.5em のため、それより多くの文字が表示されます。
  */
 export const truncateName: Action<HTMLElement, 'name' | 'card' | undefined> = (node, mode) => {
   const STYLE_ID = 'combine-name-truncate';
   const css =
     (mode ?? 'name') === 'card'
       ? '.profile-header{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}'
-      : ':host{display:inline-block;max-width:var(--combine-name-max,12ch);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;}';
+      : ':host{display:inline-block;max-width:var(--combine-name-max,12em);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;}';
 
   let raf = 0;
 
