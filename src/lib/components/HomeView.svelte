@@ -1,37 +1,45 @@
 <script lang="ts">
+import { onMount } from 'svelte';
 import { auth } from '../auth.svelte';
-import { fetchFollows } from '../follows';
+import {
+  loadNostrTimeline,
+  NOSTR_CACHE_DB_NAME,
+  NOSTR_CACHE_ORIGIN,
+  NOSTR_CACHE_PATH,
+  relaysAttr,
+} from '../nostrCache';
 
 type Feed = 'follows' | 'global';
-let feed = $state<Feed>('global');
-let follows = $state<string[] | null>(null);
-let loadingFollows = $state(false);
 
+let feed = $state<Feed>('global');
+let ready = $state(false);
+let failed = $state(false);
+
+// Pick the default tab whenever the signed-in user changes — including a login
+// or an account switch made at nosskey.app after this view mounted. Keyed on
+// the pubkey rather than run on every change so it never overrides a tab the
+// user picked themselves.
+let lastPubkey: string | null = null;
 $effect(() => {
   const pubkey = auth.pubkey;
-  if (!pubkey) {
-    follows = null;
-    feed = 'global';
-    return;
-  }
-  loadingFollows = true;
-  fetchFollows(pubkey, auth.relays)
-    .then((result) => {
-      follows = result;
-      if (result.length > 0) feed = 'follows';
-    })
-    .finally(() => {
-      loadingFollows = false;
-    });
+  if (pubkey === lastPubkey) return;
+  lastPubkey = pubkey;
+  feed = pubkey ? 'follows' : 'global';
 });
 
-// Relay filters expect hex authors; kind 3 p-tags are already hex.
-const filters = $derived.by(() => {
-  if (feed === 'follows' && follows && follows.length > 0) {
-    return JSON.stringify([{ kinds: [1], authors: follows.slice(0, 500), limit: 30 }]);
-  }
-  return JSON.stringify([{ kinds: [1], limit: 30 }]);
+onMount(() => {
+  loadNostrTimeline().then(
+    () => {
+      ready = true;
+    },
+    () => {
+      failed = true;
+    }
+  );
 });
+
+// The widget parses a comma-separated string, unlike nostr-web-components.
+const relays = $derived(relaysAttr(auth.relays));
 </script>
 
 <section>
@@ -42,9 +50,8 @@ const filters = $derived.by(() => {
         aria-selected={feed === 'follows'}
         class:active={feed === 'follows'}
         onclick={() => (feed = 'follows')}
-        disabled={!follows || follows.length === 0}
       >
-        フォロー中{loadingFollows ? '…' : ''}
+        フォロー中
       </button>
       <button
         role="tab"
@@ -55,17 +62,40 @@ const filters = $derived.by(() => {
         グローバル
       </button>
     </div>
-    {#if feed === 'follows' && follows && follows.length === 0 && !loadingFollows}
-      <p class="empty">フォローしているユーザーが見つかりませんでした。</p>
-    {/if}
   {/if}
 
-  {#key filters}
-    <nostr-stream filters={filters} relays={auth.relays} theme="light" limit="30"></nostr-stream>
-  {/key}
+  <!--
+    One element at a time: the page shares a single in-page relay, and the
+    widgets' attributes are reactive, so mounting both would only duplicate
+    subscriptions. `db-name` and `relays` are kept identical between them
+    because the first widget to mount configures the shared relay.
+  -->
+  {#if failed}
+    <p class="empty">
+      タイムラインを読み込めませんでした。
+      <a href={`${NOSTR_CACHE_ORIGIN}${NOSTR_CACHE_PATH}`} target="_blank" rel="noreferrer">
+        nostr-cache
+      </a>
+      に接続できない可能性があります。
+    </p>
+  {:else if !ready}
+    <p class="empty">読み込み中…</p>
+  {:else if feed === 'follows' && auth.pubkey}
+    <nostr-follow-timeline
+      pubkey={auth.pubkey}
+      {relays}
+      kinds="1"
+      limit="50"
+      db-name={NOSTR_CACHE_DB_NAME}
+    ></nostr-follow-timeline>
+  {:else}
+    <nostr-timeline kinds="1" limit="50" {relays} db-name={NOSTR_CACHE_DB_NAME}></nostr-timeline>
+  {/if}
 
   <p class="credit">
-    タイムラインやプロフィールの表示には
+    タイムラインの表示には
+    <a href="https://github.com/ocknamo/nostr-cache" target="_blank" rel="noreferrer">nostr-cache</a>
+    の透過キャッシュを、プロフィールなどの表示には
     <a href="https://github.com/TsukemonoGit/nostr-web-components" target="_blank" rel="noreferrer">Nostr Web Components</a>
     を使用しています。
   </p>
@@ -96,6 +126,24 @@ const filters = $derived.by(() => {
     color: var(--gold-strong);
     border-bottom-color: var(--gold);
     font-weight: 600;
+  }
+
+  /*
+    The widget renders into a shadow root, so these custom properties are the
+    only way in. Names come from the timeline-embed README.
+  */
+  nostr-timeline,
+  nostr-follow-timeline {
+    --nt-fg: var(--text);
+    --nt-muted: var(--text-muted);
+    --nt-border: var(--border);
+    --nt-separator: var(--border);
+    --nt-name-fg: var(--text);
+    --nt-handle-fg: var(--text-muted);
+    --nt-link-fg: var(--gold-strong);
+    --nt-mention-fg: var(--gold-strong);
+    --nt-quote-bar: var(--gold);
+    --nt-media-bg: var(--bg-subtle);
   }
 
   .empty {
