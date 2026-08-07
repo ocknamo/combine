@@ -23,6 +23,10 @@
 
 ## Nostr Web Components（表示）のカスタマイズ
 
+※ ホームタイムラインは nostr-cache（`nostr-timeline` / `nostr-follow-timeline`）へ移行済みで、
+この節の対象は通知・プロフィール・検索の `nostr-list` / `nostr-note` / `nostr-profile` のみ。
+ただし nostr-cache 側も Shadow DOM でアクションボタンを持たないため、課題そのものは同じ。
+
 - [ ] **投稿表示のカスタマイズ（中身の改変／各投稿下にアクションボタン追加）**
   - `@konemono/nostr-web-components@0.3.0` は **Shadow DOM** でレンダリングし、
     `slot` / `::part` / `::slotted` を公開していない。
