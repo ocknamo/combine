@@ -1,5 +1,5 @@
 <script lang="ts">
-import { auth } from '../auth.svelte';
+import { cacheRelay } from '../cacheRelay.svelte';
 import { toHexPubkey } from '../nip19';
 import { truncateName } from '../truncateName';
 
@@ -10,6 +10,10 @@ type Result =
 
 let query = $state('');
 let result = $state<Result | null>(null);
+
+// Part of the {#key} below: the elements ignore a changed `relays`, so they are
+// rebuilt when the connection target moves.
+const relayKey = $derived(cacheRelay.viewRelays.join(','));
 
 function search(event: SubmitEvent) {
   event.preventDefault();
@@ -44,24 +48,26 @@ function search(event: SubmitEvent) {
     <button type="submit" class="primary">検索</button>
   </form>
 
-  {#if result}
-    {#key query}
+  {#if result && !cacheRelay.resolved}
+    <p class="empty">読み込み中…</p>
+  {:else if result}
+    {#key `${query}|${relayKey}`}
       {#if result.kind === 'tag'}
         <h2>#{result.tag}</h2>
         <nostr-list
           filters={JSON.stringify([{ kinds: [1], '#t': [result.tag], limit: 30 }])}
-          relays={auth.relays}
+          relays={cacheRelay.viewRelays}
           theme="light"
         ></nostr-list>
       {:else if result.kind === 'note'}
-        <nostr-note nevent={result.id} relays={auth.relays} theme="light"></nostr-note>
+        <nostr-note nevent={result.id} relays={cacheRelay.viewRelays} theme="light"></nostr-note>
       {:else}
-        <nostr-profile use:truncateName={'card'} user={result.user} relays={auth.relays} display="card"></nostr-profile>
+        <nostr-profile use:truncateName={'card'} user={result.user} relays={cacheRelay.viewRelays} display="card"></nostr-profile>
         {#if result.hex}
           <h2>投稿</h2>
           <nostr-list
             filters={JSON.stringify([{ kinds: [1], authors: [result.hex], limit: 30 }])}
-            relays={auth.relays}
+            relays={cacheRelay.viewRelays}
             theme="light"
           ></nostr-list>
         {/if}

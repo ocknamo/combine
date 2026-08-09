@@ -1,5 +1,6 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
+import { cacheRelay } from '../cacheRelay.svelte';
 import { toHexPubkey, toNpub } from '../nip19';
 import { toast } from '../toast.svelte';
 import { truncateName } from '../truncateName';
@@ -9,6 +10,10 @@ let { user = null, own = false }: { user?: string | null; own?: boolean } = $pro
 
 const hex = $derived(user ? toHexPubkey(user) : null);
 const npub = $derived(hex ? toNpub(hex) : null);
+
+// The elements below ignore a changed `relays`, so they are keyed on the
+// connection target and rebuilt when it moves.
+const relayKey = $derived(cacheRelay.viewRelays.join(','));
 
 async function copyNpub() {
   if (!npub) return;
@@ -23,7 +28,11 @@ async function copyNpub() {
   {:else if !hex}
     <p class="empty">ユーザーが見つかりませんでした。</p>
   {:else}
-    <nostr-profile use:truncateName={'card'} user={hex} relays={auth.relays} display="card" nolink="true" theme="light"></nostr-profile>
+    {#if cacheRelay.resolved}
+      {#key relayKey}
+        <nostr-profile use:truncateName={'card'} user={hex} relays={cacheRelay.viewRelays} display="card" nolink="true" theme="light"></nostr-profile>
+      {/key}
+    {/if}
 
     <div class="meta">
       {#if npub}
@@ -37,13 +46,17 @@ async function copyNpub() {
     </div>
 
     <h2>投稿</h2>
-    {#key hex}
-      <nostr-list
-        filters={JSON.stringify([{ kinds: [1], authors: [hex], limit: 30 }])}
-        relays={auth.relays}
-        theme="light"
-      ></nostr-list>
-    {/key}
+    {#if cacheRelay.resolved}
+      {#key `${hex}|${relayKey}`}
+        <nostr-list
+          filters={JSON.stringify([{ kinds: [1], authors: [hex], limit: 30 }])}
+          relays={cacheRelay.viewRelays}
+          theme="light"
+        ></nostr-list>
+      {/key}
+    {:else}
+      <p class="empty">読み込み中…</p>
+    {/if}
   {/if}
 </section>
 

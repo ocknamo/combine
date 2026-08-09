@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { auth } from './lib/auth.svelte';
+import { cacheRelay } from './lib/cacheRelay.svelte';
 import ComposeView from './lib/components/ComposeView.svelte';
 import Header from './lib/components/Header.svelte';
 import HomeView from './lib/components/HomeView.svelte';
@@ -15,8 +16,32 @@ const route = $derived(router.current);
 
 // A session restored from localStorage never runs login(), so pull the user's
 // relays here too.
+//
+// The cache relay is started only once that has settled. Its upstreams are
+// fixed at startup, so starting before the user's relays are known would mean
+// standing the relay back up moments later — and tearing it down takes every
+// view's subscription with it. Waiting costs one round trip to the signing
+// iframe, on a path where the views are showing a placeholder anyway.
 onMount(() => {
-  if (auth.loggedIn) void auth.refreshRelays();
+  void (async () => {
+    if (auth.loggedIn) await auth.refreshRelays();
+    await cacheRelay.start(auth.relays);
+  })();
+});
+
+// An explicit login or logout replaces the relay set, which the running relay
+// cannot adopt (its upstreams were fixed when it started). Restart it. Keyed on
+// the joined list rather than the array so a refresh that returns the same
+// relays is not treated as a change.
+let lastRelayKey = auth.relays.join(',');
+$effect(() => {
+  const relayKey = auth.relays.join(',');
+  if (relayKey === lastRelayKey) return;
+  lastRelayKey = relayKey;
+  const relays = auth.relays;
+  // Restarting only writes to the cacheRelay store, which this effect does not
+  // read, so it cannot re-trigger itself.
+  void cacheRelay.stop().then(() => cacheRelay.start(relays));
 });
 </script>
 
