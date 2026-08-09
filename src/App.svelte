@@ -1,5 +1,5 @@
 <script lang="ts">
-import { onMount } from 'svelte';
+import { onMount, tick } from 'svelte';
 import { auth } from './lib/auth.svelte';
 import { cacheRelay } from './lib/cacheRelay.svelte';
 import ComposeView from './lib/components/ComposeView.svelte';
@@ -10,6 +10,7 @@ import ProfileView from './lib/components/ProfileView.svelte';
 import SearchView from './lib/components/SearchView.svelte';
 import TabBar from './lib/components/TabBar.svelte';
 import { router } from './lib/router.svelte';
+import { readScroll, saveScroll, scrollKey } from './lib/scrollMemory';
 import { toast } from './lib/toast.svelte';
 
 const route = $derived(router.current);
@@ -43,14 +44,51 @@ $effect(() => {
   // read, so it cannot re-trigger itself.
   void cacheRelay.stop().then(() => cacheRelay.start(relays));
 });
+
+// A view that keeps its state across a tab switch should also keep its scroll
+// position, or coming back still reads as a reload. The page itself is the
+// scroll container and a hidden view adds no height to it, so the browser
+// clamps the offset as soon as the switch happens — too late to read it back
+// then. Record it as the user scrolls instead.
+//
+// `scrolledKey` is a plain variable, not state: the listener reads it when it
+// fires rather than when the effect runs, and making it reactive would only
+// re-subscribe the listener on every navigation. It starts at the route the app
+// opened on — deliberately the value at that moment, not a reactive read.
+let scrolledKey = scrollKey(router.current.name, router.current.param);
+$effect(() => {
+  const onScroll = () => saveScroll(scrolledKey, window.scrollY);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  return () => window.removeEventListener('scroll', onScroll);
+});
+
+$effect(() => {
+  const key = scrollKey(route.name, route.param);
+  if (key === scrolledKey) return;
+  scrolledKey = key;
+  const offset = readScroll(key);
+  // After the new view has rendered, so the page is tall enough for the offset
+  // to still be reachable. A freshly mounted view has none recorded and starts
+  // at the top, which is also what scrolling to 0 does.
+  void tick().then(() => window.scrollTo(0, offset));
+});
 </script>
 
 <div class="app">
   <Header />
   <main>
-    {#if route.name === 'home'}
+    <!--
+      Home stays mounted and is only hidden. Tearing the timeline down and
+      building it again on every tab switch throws away the loaded events, the
+      scroll position and the widget's subscriptions, and the user sees it
+      reload — even though the cache relay answers from IndexedDB, that is a
+      spinner and a jump to the top for something they were just reading.
+    -->
+    <div class="view-holder" class:hidden={route.name !== 'home'}>
       <HomeView />
-    {:else if route.name === 'search'}
+    </div>
+
+    {#if route.name === 'search'}
       <SearchView />
     {:else if route.name === 'notifications'}
       <NotificationsView />
@@ -61,7 +99,7 @@ $effect(() => {
     {/if}
 
     <!-- Compose stays mounted so the eHagaki draft and bridge survive tab switches -->
-    <div class="compose-holder" class:hidden={route.name !== 'compose'}>
+    <div class="view-holder" class:hidden={route.name !== 'compose'}>
       <ComposeView />
     </div>
   </main>
@@ -95,14 +133,15 @@ $effect(() => {
     min-height: 0;
   }
 
-  .compose-holder {
+  /* Wrapper for a view that is kept mounted while another one is on screen. */
+  .view-holder {
     flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
   }
 
-  .compose-holder.hidden {
+  .view-holder.hidden {
     display: none;
   }
 

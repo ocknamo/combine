@@ -12,15 +12,37 @@ import {
 
 type Feed = 'follows' | 'global';
 
-let feed = $state<Feed>('global');
+// Start on the tab a session restored from localStorage implies. The effect
+// below would switch to it anyway, but only after the first render — long
+// enough to mount the global feed and leave it mounted for the rest of the
+// session, now that a mounted feed is kept.
+let feed = $state<Feed>(auth.pubkey ? 'follows' : 'global');
 let ready = $state(false);
 let failed = $state(false);
+
+// The feed actually on screen. `follows` needs a pubkey, so a logged-out user
+// (or one whose session has not been restored yet) always gets `global`.
+const active = $derived<Feed>(feed === 'follows' && auth.pubkey ? 'follows' : 'global');
+
+// Whether each feed has been on screen at least once. Both widgets stay mounted
+// from then on and are only hidden, so switching back is instant instead of a
+// refetch — see the template. Mounting them lazily keeps the second
+// subscription off the wire for a session that never leaves the tab it landed
+// on.
+let openedFollows = $state(false);
+let openedGlobal = $state(false);
+$effect(() => {
+  // Writes only — this effect reads neither flag, so it cannot re-trigger
+  // itself.
+  if (active === 'follows') openedFollows = true;
+  else openedGlobal = true;
+});
 
 // Pick the default tab whenever the signed-in user changes — including a login
 // or an account switch made at nosskey.app after this view mounted. Keyed on
 // the pubkey rather than run on every change so it never overrides a tab the
 // user picked themselves.
-let lastPubkey: string | null = null;
+let lastPubkey: string | null = auth.pubkey;
 $effect(() => {
   const pubkey = auth.pubkey;
   if (pubkey === lastPubkey) return;
@@ -48,16 +70,16 @@ const relays = $derived(relaysAttr(auth.relays));
     <div class="feed-switch" role="tablist" aria-label="タイムライン切り替え">
       <button
         role="tab"
-        aria-selected={feed === 'follows'}
-        class:active={feed === 'follows'}
+        aria-selected={active === 'follows'}
+        class:active={active === 'follows'}
         onclick={() => (feed = 'follows')}
       >
         フォロー中
       </button>
       <button
         role="tab"
-        aria-selected={feed === 'global'}
-        class:active={feed === 'global'}
+        aria-selected={active === 'global'}
+        class:active={active === 'global'}
         onclick={() => (feed = 'global')}
       >
         グローバル
@@ -66,12 +88,17 @@ const relays = $derived(relaysAttr(auth.relays));
   {/if}
 
   <!--
-    One element at a time: the page shares a single in-page relay, and the
-    widgets' attributes are reactive, so mounting both would only duplicate
-    subscriptions. `db-name`, `relays` and `profile-freshness` are kept
-    identical between them, and match what `App.svelte` acquires the relay with
-    — whoever gets there first configures it, and a mismatch is ignored with a
-    console warning.
+    A feed the user has opened is kept mounted and only hidden when they switch
+    away. The widgets are Svelte custom elements: taking one out of the DOM
+    destroys it, and putting it back means re-subscribing and rebuilding the
+    list from scratch, so switching tabs looked like a reload every time.
+    The cost is that once both have been opened, both hold a subscription — but
+    they read through the same in-page relay and the same IndexedDB, so it is a
+    second subscription, not a second trip upstream.
+
+    `db-name`, `relays` and `profile-freshness` are kept identical between them,
+    and match what `App.svelte` acquires the relay with — whoever gets there
+    first configures it, and a mismatch is ignored with a console warning.
   -->
   {#if failed}
     <p class="empty">
@@ -83,23 +110,31 @@ const relays = $derived(relaysAttr(auth.relays));
     </p>
   {:else if !ready}
     <p class="empty">読み込み中…</p>
-  {:else if feed === 'follows' && auth.pubkey}
-    <nostr-follow-timeline
-      pubkey={auth.pubkey}
-      {relays}
-      kinds="1"
-      limit="50"
-      db-name={NOSTR_CACHE_DB_NAME}
-      profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
-    ></nostr-follow-timeline>
   {:else}
-    <nostr-timeline
-      kinds="1"
-      limit="50"
-      {relays}
-      db-name={NOSTR_CACHE_DB_NAME}
-      profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
-    ></nostr-timeline>
+    <!-- Dropped on logout: the element has no feed to show without a pubkey. -->
+    {#if openedFollows && auth.pubkey}
+      <div class="feed" class:hidden={active !== 'follows'}>
+        <nostr-follow-timeline
+          pubkey={auth.pubkey}
+          {relays}
+          kinds="1"
+          limit="50"
+          db-name={NOSTR_CACHE_DB_NAME}
+          profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
+        ></nostr-follow-timeline>
+      </div>
+    {/if}
+    {#if openedGlobal}
+      <div class="feed" class:hidden={active !== 'global'}>
+        <nostr-timeline
+          kinds="1"
+          limit="50"
+          {relays}
+          db-name={NOSTR_CACHE_DB_NAME}
+          profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
+        ></nostr-timeline>
+      </div>
+    {/if}
   {/if}
 
   <p class="credit">
@@ -136,6 +171,16 @@ const relays = $derived(relaysAttr(auth.relays));
     color: var(--gold-strong);
     border-bottom-color: var(--gold);
     font-weight: 600;
+  }
+
+  /* Wrapper for a feed that is kept mounted while the other one is on screen. */
+  .feed {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .feed.hidden {
+    display: none;
   }
 
   /*
