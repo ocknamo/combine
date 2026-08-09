@@ -6,6 +6,7 @@ import {
   NOSTR_CACHE_DB_NAME,
   NOSTR_CACHE_ORIGIN,
   NOSTR_CACHE_PATH,
+  NOSTR_CACHE_PROFILE_FRESHNESS,
   relaysAttr,
 } from '../nostrCache';
 
@@ -67,8 +68,10 @@ const relays = $derived(relaysAttr(auth.relays));
   <!--
     One element at a time: the page shares a single in-page relay, and the
     widgets' attributes are reactive, so mounting both would only duplicate
-    subscriptions. `db-name` and `relays` are kept identical between them
-    because the first widget to mount configures the shared relay.
+    subscriptions. `db-name`, `relays` and `profile-freshness` are kept
+    identical between them, and match what `App.svelte` acquires the relay with
+    — whoever gets there first configures it, and a mismatch is ignored with a
+    console warning.
   -->
   {#if failed}
     <p class="empty">
@@ -87,13 +90,20 @@ const relays = $derived(relaysAttr(auth.relays));
       kinds="1"
       limit="50"
       db-name={NOSTR_CACHE_DB_NAME}
+      profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
     ></nostr-follow-timeline>
   {:else}
-    <nostr-timeline kinds="1" limit="50" {relays} db-name={NOSTR_CACHE_DB_NAME}></nostr-timeline>
+    <nostr-timeline
+      kinds="1"
+      limit="50"
+      {relays}
+      db-name={NOSTR_CACHE_DB_NAME}
+      profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
+    ></nostr-timeline>
   {/if}
 
   <p class="credit">
-    タイムラインの表示には
+    タイムラインの表示と全ビューのキャッシュには
     <a href="https://github.com/ocknamo/nostr-cache" target="_blank" rel="noreferrer">nostr-cache</a>
     の透過キャッシュを、プロフィールなどの表示には
     <a href="https://github.com/TsukemonoGit/nostr-web-components" target="_blank" rel="noreferrer">Nostr Web Components</a>

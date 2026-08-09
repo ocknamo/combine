@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RELAYS, readRelaysFrom } from './relays';
+import { DEFAULT_RELAYS, pickViewRelays, readRelaysFrom } from './relays';
 
 describe('readRelaysFrom', () => {
   it('falls back to defaults for a missing map', () => {
@@ -28,5 +28,19 @@ describe('readRelaysFrom', () => {
     expect(readRelaysFrom({ 'wss://write.example': { read: false, write: true } })).toBe(
       DEFAULT_RELAYS
     );
+  });
+});
+
+describe('pickViewRelays', () => {
+  const upstream = ['wss://a.example', 'wss://b.example'];
+
+  it('routes through the cache relay alone when one is running', () => {
+    expect(pickViewRelays('ws://nostr-cache.invalid', upstream)).toEqual([
+      'ws://nostr-cache.invalid',
+    ]);
+  });
+
+  it('falls back to the upstream relays when there is no cache relay', () => {
+    expect(pickViewRelays(null, upstream)).toBe(upstream);
   });
 });

@@ -1,9 +1,14 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
+import { cacheRelay } from '../cacheRelay.svelte';
 import { router } from '../router.svelte';
 import { truncateName } from '../truncateName';
 
 const iconUrl = `${import.meta.env.BASE_URL}icon.png`;
+
+// nostr-profile, like nostr-list, does not react to a changed `relays`, so the
+// element is keyed on the connection target and rebuilt when it moves.
+const relayKey = $derived(cacheRelay.viewRelays.join(','));
 </script>
 
 <header>
@@ -17,14 +22,18 @@ const iconUrl = `${import.meta.env.BASE_URL}icon.png`;
     </button>
   {:else}
     <button class="ghost" onclick={() => router.go('/profile')} aria-label="プロフィール">
-      <nostr-profile
-        use:truncateName={'name'}
-        user={auth.pubkey ?? undefined}
-        relays={auth.relays}
-        display="name"
-        nolink="true"
-        theme="light"
-      ></nostr-profile>
+      {#if cacheRelay.resolved}
+        {#key relayKey}
+          <nostr-profile
+            use:truncateName={'name'}
+            user={auth.pubkey ?? undefined}
+            relays={cacheRelay.viewRelays}
+            display="name"
+            nolink="true"
+            theme="light"
+          ></nostr-profile>
+        {/key}
+      {/if}
     </button>
   {/if}
 </header>

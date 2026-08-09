@@ -25,3 +25,19 @@ export function readRelaysFrom(map: RelayMap | null | undefined): string[] {
     .map(([url]) => url);
   return reads.length > 0 ? reads : DEFAULT_RELAYS;
 }
+
+/**
+ * Pick what a view should connect to: the in-page cache relay when it is
+ * running, the upstream relays directly when it is not.
+ *
+ * Handing a view the single intercept URL is not a narrower relay set — the
+ * cache relay reads through to `relays` on the app's behalf, so the same events
+ * arrive, having passed through IndexedDB on the way. Falling back to the
+ * upstream list keeps every view working unchanged when there is no cache to
+ * read through (see {@link import('./nostrCache').startCacheRelay}).
+ *
+ * @param interceptUrl The running relay's URL, or `null` when none is running
+ */
+export function pickViewRelays(interceptUrl: string | null, relays: string[]): string[] {
+  return interceptUrl ? [interceptUrl] : relays;
+}
