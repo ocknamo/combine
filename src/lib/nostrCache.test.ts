@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
+  filtersAttr,
   NOSTR_CACHE_DB_NAME,
   NOSTR_CACHE_ORIGIN,
   NOSTR_CACHE_PROFILE_FRESHNESS,
@@ -83,5 +84,20 @@ describe('relaysAttr', () => {
 
   it('returns an empty string for no relays', () => {
     expect(relaysAttr([])).toBe('');
+  });
+});
+
+describe('filtersAttr', () => {
+  // The widget parses the attribute as a JSON array of NIP-01 filters and
+  // ignores the whole thing if it is anything else.
+  it('serialises filters as a JSON array', () => {
+    const attr = filtersAttr([{ kinds: [1], authors: ['abc'], limit: 30 }]);
+    expect(JSON.parse(attr)).toEqual([{ kinds: [1], authors: ['abc'], limit: 30 }]);
+  });
+
+  it('keeps tag filters', () => {
+    expect(filtersAttr([{ kinds: [1, 6, 7, 9735], '#p': ['abc'], limit: 50 }])).toBe(
+      '[{"kinds":[1,6,7,9735],"#p":["abc"],"limit":50}]'
+    );
   });
 });

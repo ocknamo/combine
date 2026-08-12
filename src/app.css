@@ -96,6 +96,24 @@ input[type="search"]:focus {
   border-color: var(--gold);
 }
 
+/* nostr-cache's timeline widgets (home, notifications, profile posts, search).
+   They render into a shadow root, so these custom properties are the only way
+   in — and they are set globally rather than per view so every embed of the
+   widget looks the same. Names come from the timeline-embed README. */
+nostr-timeline,
+nostr-follow-timeline {
+  --nt-fg: var(--text);
+  --nt-muted: var(--text-muted);
+  --nt-border: var(--border);
+  --nt-separator: var(--border);
+  --nt-name-fg: var(--text);
+  --nt-handle-fg: var(--text-muted);
+  --nt-link-fg: var(--gold-strong);
+  --nt-mention-fg: var(--gold-strong);
+  --nt-quote-bar: var(--gold);
+  --nt-media-bg: var(--bg-subtle);
+}
+
 /* Nosskey signing iframe overlay: the iframe toggles its own display,
    the backdrop follows via the `visible` class set from JS. */
 .nosskey-overlay {
