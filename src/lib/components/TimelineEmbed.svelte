@@ -4,15 +4,18 @@
  * NIP-01 filter.
  *
  * The same widget the home timeline uses, so notifications, a profile's posts
- * and search results render exactly like the follow feed — and read through the
- * same in-page relay and IndexedDB rather than talking to the upstream relays
- * on their own.
+ * and search results render exactly like the follow feed — same media, quote
+ * and mention handling, same theming hooks. That is what this is for: the views
+ * already read through the in-page cache relay before they used the widget (see
+ * `cacheRelay.svelte.ts`), so nothing here is about caching.
  *
- * The element takes its upstream relays and cache settings directly (it
- * acquires the page's relay host itself), so unlike the Nostr Web Components
- * this does not wait on `cacheRelay`. `db-name` and `profile-freshness` must
- * match what every other holder passes — whoever gets there first configures
- * the relay, and a mismatch is ignored with a console warning.
+ * What it saves each view is the wiring: the element comes from a script on
+ * another origin that has to be loaded first and can fail to load, and its
+ * `db-name` / `profile-freshness` have to agree with every other holder of the
+ * relay — whoever gets there first configures it, and a mismatch is ignored
+ * with a console warning. The element takes those settings directly and
+ * acquires the relay host itself, so unlike the Nostr Web Components it does
+ * not wait on `cacheRelay`.
  */
 import { onMount } from 'svelte';
 import { auth } from '../auth.svelte';

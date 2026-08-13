@@ -1,8 +1,8 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
 import type { NostrFilter } from '../nostrCache';
-import CachedTimeline from './CachedTimeline.svelte';
 import LoginGate from './LoginGate.svelte';
+import TimelineEmbed from './TimelineEmbed.svelte';
 
 // Mentions, reposts, reactions, zaps addressed to me.
 const filters = $derived<NostrFilter[] | null>(
@@ -12,7 +12,7 @@ const filters = $derived<NostrFilter[] | null>(
 
 <section>
   {#if filters}
-    <CachedTimeline {filters} />
+    <TimelineEmbed {filters} />
   {:else}
     <LoginGate message="通知を表示するにはログインが必要です。" />
   {/if}

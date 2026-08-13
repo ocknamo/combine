@@ -23,16 +23,18 @@
   - 「フォロー中」は `nostr-follow-timeline` が kind 3 の取得とキャッシュまで担当する
 - 投稿一覧はすべて同じ nostr-cache の埋め込み
   - 通知・プロフィールの投稿・検索結果も `nostr-timeline` に NIP-01 フィルタを渡して表示する
-    （`src/lib/components/CachedTimeline.svelte`）。ホームタイムラインと見た目・挙動が揃い、
-    ブラウザ内リレーとキャッシュも共有する
+    （`src/lib/components/TimelineEmbed.svelte`）。メディア・引用・メンションの扱いや
+    テーマ変数がホームタイムラインと揃う
+  - キャッシュはこれとは別の話。下記の透過キャッシュはウィジェットに寄せる前から
+    全ビューに効いている
 - 全ビューの透過キャッシュ
   - nostr-cache がブラウザ内リレーを上流リレーの手前に挟むため、2 回目以降の表示は
     IndexedDB のキャッシュから即座に描画される
   - タイムラインだけでなく、通知・プロフィール・検索も同じキャッシュを通る。
-    投稿一覧は `nostr-timeline` 自身がブラウザ内リレーを掴むので直接キャッシュに載り、
-    残る Nostr Web Components（`nostr-profile` / `nostr-note`）も接続先をその URL に
-    向けることで載る。ブラウザ内リレーは `globalThis.WebSocket` を差し替えて 1 つの URL への
-    接続だけを横取りする仕組み（どちらも内部は rx-nostr）
+    ブラウザ内リレーは `globalThis.WebSocket` を差し替えて 1 つの URL への接続だけを
+    横取りする仕組みなので、`nostr-timeline` は自分でリレーを掴んで、Nostr Web Components
+    （`nostr-profile` / `nostr-note`）は接続先をその URL に向けることで載る
+    （どちらも内部は rx-nostr）
   - プロフィール（kind 0）は 1 時間の鮮度ウィンドウが効き、Header とプロフィール画面が
     同じ pubkey を取り直さなくなる
   - nostr-cache に到達できない環境では自動的に上流リレー直結へフォールバックする

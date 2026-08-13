@@ -2,7 +2,7 @@
 import { cacheRelay } from '../cacheRelay.svelte';
 import { toHexPubkey } from '../nip19';
 import { truncateName } from '../truncateName';
-import CachedTimeline from './CachedTimeline.svelte';
+import TimelineEmbed from './TimelineEmbed.svelte';
 
 type Result =
   | { kind: 'user'; user: string; hex: string | null }
@@ -55,7 +55,7 @@ function search(event: SubmitEvent) {
   {#if result}
     {#if result.kind === 'tag'}
       <h2>#{result.tag}</h2>
-      <CachedTimeline filters={[{ kinds: [1], '#t': [result.tag], limit: 30 }]} />
+      <TimelineEmbed filters={[{ kinds: [1], '#t': [result.tag], limit: 30 }]} />
     {:else if result.kind === 'note'}
       {#if cacheRelay.resolved}
         {#key `${result.id}|${relayKey}`}
@@ -72,7 +72,7 @@ function search(event: SubmitEvent) {
       {/if}
       {#if result.hex}
         <h2>投稿</h2>
-        <CachedTimeline filters={[{ kinds: [1], authors: [result.hex], limit: 30 }]} />
+        <TimelineEmbed filters={[{ kinds: [1], authors: [result.hex], limit: 30 }]} />
       {/if}
     {/if}
   {:else}

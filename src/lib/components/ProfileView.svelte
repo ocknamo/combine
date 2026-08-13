@@ -4,8 +4,8 @@ import { cacheRelay } from '../cacheRelay.svelte';
 import { toHexPubkey, toNpub } from '../nip19';
 import { toast } from '../toast.svelte';
 import { truncateName } from '../truncateName';
-import CachedTimeline from './CachedTimeline.svelte';
 import LoginGate from './LoginGate.svelte';
+import TimelineEmbed from './TimelineEmbed.svelte';
 
 let { user = null, own = false }: { user?: string | null; own?: boolean } = $props();
 
@@ -48,7 +48,7 @@ async function copyNpub() {
     </div>
 
     <h2>投稿</h2>
-    <CachedTimeline filters={[{ kinds: [1], authors: [hex], limit: 30 }]} />
+    <TimelineEmbed filters={[{ kinds: [1], authors: [hex], limit: 30 }]} />
   {/if}
 </section>
 
