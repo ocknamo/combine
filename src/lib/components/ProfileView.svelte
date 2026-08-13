@@ -13,8 +13,7 @@ const hex = $derived(user ? toHexPubkey(user) : null);
 const npub = $derived(hex ? toNpub(hex) : null);
 
 // `nostr-profile` ignores a changed `relays`, so it is keyed on the connection
-// target and rebuilt when it moves. The post list does not need this: it is the
-// nostr-cache widget, which reacts to both its filters and its relays.
+// target and rebuilt when it moves.
 const relayKey = $derived(cacheRelay.viewRelays.join(','));
 
 async function copyNpub() {

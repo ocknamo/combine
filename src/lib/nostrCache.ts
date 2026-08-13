@@ -63,12 +63,9 @@ export function relaysAttr(relays: string[]): string {
 }
 
 /**
- * A NIP-01 filter, as the widget's `filters` attribute accepts it.
- *
- * Only the keys nostr-cache understands: `ids`, `authors`, `kinds`, `since`,
- * `until`, `limit` and single-letter tag filters (`#p`, `#t`, `#e`, …). It warns
- * about and drops anything else, so an unsupported key would silently widen the
- * query rather than narrow it.
+ * A NIP-01 filter, narrowed to the keys nostr-cache understands. It drops an
+ * unsupported one with a warning — which widens the query rather than narrowing
+ * it.
  */
 export type NostrFilter = {
   ids?: string[];
@@ -80,12 +77,9 @@ export type NostrFilter = {
 } & { [tag: `#${string}`]: string[] };
 
 /**
- * Format filters for the widget's `filters` attribute.
- *
- * A filter list replaces the element's `kinds` / `authors` / `limit`
- * attributes — setting both makes it ignore the others with a warning — so a
- * view that passes filters should pass nothing else about what to fetch.
- * nostr-cache reads at most 10 filters and drops the rest.
+ * Format filters for the widget's `filters` attribute. They replace the
+ * element's `kinds` / `authors` / `limit`, which it then ignores with a
+ * warning, and only the first 10 are read.
  */
 export function filtersAttr(filters: NostrFilter[]): string {
   return JSON.stringify(filters);

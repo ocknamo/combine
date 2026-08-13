@@ -1,21 +1,15 @@
 <script lang="ts">
 /**
- * A list of events rendered by nostr-cache's `<nostr-timeline>`, chosen with a
- * NIP-01 filter.
+ * Events chosen with a NIP-01 filter, rendered by the same nostr-cache widget
+ * as the home timeline so every list in the app looks and behaves alike. Not a
+ * caching concern: these views read through the in-page relay either way (see
+ * `cacheRelay.svelte.ts`).
  *
- * The same widget the home timeline uses, so notifications, a profile's posts
- * and search results render exactly like the follow feed — same media, quote
- * and mention handling, same theming hooks. That is what this is for: the views
- * already read through the in-page cache relay before they used the widget (see
- * `cacheRelay.svelte.ts`), so nothing here is about caching.
- *
- * What it saves each view is the wiring: the element comes from a script on
- * another origin that has to be loaded first and can fail to load, and its
- * `db-name` / `profile-freshness` have to agree with every other holder of the
- * relay — whoever gets there first configures it, and a mismatch is ignored
- * with a console warning. The element takes those settings directly and
- * acquires the relay host itself, so unlike the Nostr Web Components it does
- * not wait on `cacheRelay`.
+ * `db-name` and `profile-freshness` have to agree with every other holder of
+ * that relay — the first acquisition configures it and a mismatch is only a
+ * console warning. The element acquires it itself, so nothing here waits on
+ * `cacheRelay`, and it re-subscribes on a changed `filters` or `relays`, so no
+ * view needs a {#key} around it.
  */
 import { onMount } from 'svelte';
 import { auth } from '../auth.svelte';
@@ -36,7 +30,6 @@ let ready = $state(false);
 let failed = $state(false);
 
 onMount(() => {
-  // Shared, deduplicated promise: a mount after the first resolves immediately.
   loadNostrTimeline().then(
     () => {
       ready = true;
@@ -47,12 +40,7 @@ onMount(() => {
   );
 });
 
-// The widget parses a comma-separated string, unlike nostr-web-components.
 const relays = $derived(relaysAttr(auth.relays));
-
-// Plain props, not part of a {#key}: the element re-runs its subscription when
-// `filters` or `relays` change, so a new search term or a relay switch does not
-// need it rebuilt (`nostr-list` did).
 const filtersJson = $derived(filtersAttr(filters));
 </script>
 

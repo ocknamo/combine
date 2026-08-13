@@ -12,11 +12,10 @@ type Result =
 let query = $state('');
 let result = $state<Result | null>(null);
 
-// Part of the {#key} below: `nostr-note` and `nostr-profile` ignore a changed
-// `relays`, so they are rebuilt when the connection target moves. The other
-// half of the key is what was searched for — `result`, not the bound `query`,
-// so typing the next search does not rebuild the one on screen. The result
-// lists are nostr-cache widgets and react to their filters on their own.
+// `nostr-note` and `nostr-profile` ignore a changed `relays`, so the {#key}
+// below rebuilds them when the connection target moves. Its other half is
+// `result`, not the bound `query`: typing the next search must not rebuild the
+// result on screen.
 const relayKey = $derived(cacheRelay.viewRelays.join(','));
 
 function search(event: SubmitEvent) {

@@ -88,8 +88,6 @@ describe('relaysAttr', () => {
 });
 
 describe('filtersAttr', () => {
-  // The widget parses the attribute as a JSON array of NIP-01 filters and
-  // ignores the whole thing if it is anything else.
   it('serialises filters as a JSON array', () => {
     const attr = filtersAttr([{ kinds: [1], authors: ['abc'], limit: 30 }]);
     expect(JSON.parse(attr)).toEqual([{ kinds: [1], authors: ['abc'], limit: 30 }]);

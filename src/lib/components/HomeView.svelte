@@ -183,9 +183,7 @@ const relays = $derived(relaysAttr(auth.relays));
     display: none;
   }
 
-  /* The widgets' own look is themed globally in `app.css`: every view embeds
-     one now, and they render into a shadow root that only custom properties
-     reach. */
+  /* The widgets themselves are themed in `app.css` — every view embeds one. */
 
   .empty {
     text-align: center;

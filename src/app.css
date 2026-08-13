@@ -96,10 +96,9 @@ input[type="search"]:focus {
   border-color: var(--gold);
 }
 
-/* nostr-cache's timeline widgets (home, notifications, profile posts, search).
-   They render into a shadow root, so these custom properties are the only way
-   in — and they are set globally rather than per view so every embed of the
-   widget looks the same. Names come from the timeline-embed README. */
+/* nostr-cache's timeline widgets render into a shadow root, so these custom
+   properties are the only way in. Global rather than per view: every list in
+   the app embeds one. Names come from the timeline-embed README. */
 nostr-timeline,
 nostr-follow-timeline {
   --nt-fg: var(--text);
