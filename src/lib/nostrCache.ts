@@ -62,6 +62,29 @@ export function relaysAttr(relays: string[]): string {
   return relays.join(',');
 }
 
+/**
+ * A NIP-01 filter, narrowed to the keys nostr-cache understands. It drops an
+ * unsupported one with a warning — which widens the query rather than narrowing
+ * it.
+ */
+export type NostrFilter = {
+  ids?: string[];
+  authors?: string[];
+  kinds?: number[];
+  since?: number;
+  until?: number;
+  limit?: number;
+} & { [tag: `#${string}`]: string[] };
+
+/**
+ * Format filters for the widget's `filters` attribute. They replace the
+ * element's `kinds` / `authors` / `limit`, which it then ignores with a
+ * warning, and only the first 10 are read.
+ */
+export function filtersAttr(filters: NostrFilter[]): string {
+  return JSON.stringify(filters);
+}
+
 let pending: Promise<void> | null = null;
 
 /**

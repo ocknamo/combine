@@ -2,6 +2,7 @@
 import { cacheRelay } from '../cacheRelay.svelte';
 import { toHexPubkey } from '../nip19';
 import { truncateName } from '../truncateName';
+import TimelineEmbed from './TimelineEmbed.svelte';
 
 type Result =
   | { kind: 'user'; user: string; hex: string | null }
@@ -11,8 +12,10 @@ type Result =
 let query = $state('');
 let result = $state<Result | null>(null);
 
-// Part of the {#key} below: the elements ignore a changed `relays`, so they are
-// rebuilt when the connection target moves.
+// `nostr-note` and `nostr-profile` ignore a changed `relays`, so the {#key}
+// below rebuilds them when the connection target moves. Its other half is
+// `result`, not the bound `query`: typing the next search must not rebuild the
+// result on screen.
 const relayKey = $derived(cacheRelay.viewRelays.join(','));
 
 function search(event: SubmitEvent) {
@@ -48,31 +51,29 @@ function search(event: SubmitEvent) {
     <button type="submit" class="primary">検索</button>
   </form>
 
-  {#if result && !cacheRelay.resolved}
-    <p class="empty">読み込み中…</p>
-  {:else if result}
-    {#key `${query}|${relayKey}`}
-      {#if result.kind === 'tag'}
-        <h2>#{result.tag}</h2>
-        <nostr-list
-          filters={JSON.stringify([{ kinds: [1], '#t': [result.tag], limit: 30 }])}
-          relays={cacheRelay.viewRelays}
-          theme="light"
-        ></nostr-list>
-      {:else if result.kind === 'note'}
-        <nostr-note nevent={result.id} relays={cacheRelay.viewRelays} theme="light"></nostr-note>
+  {#if result}
+    {#if result.kind === 'tag'}
+      <h2>#{result.tag}</h2>
+      <TimelineEmbed filters={[{ kinds: [1], '#t': [result.tag], limit: 30 }]} />
+    {:else if result.kind === 'note'}
+      {#if cacheRelay.resolved}
+        {#key `${result.id}|${relayKey}`}
+          <nostr-note nevent={result.id} relays={cacheRelay.viewRelays} theme="light"></nostr-note>
+        {/key}
       {:else}
-        <nostr-profile use:truncateName={'card'} user={result.user} relays={cacheRelay.viewRelays} display="card"></nostr-profile>
-        {#if result.hex}
-          <h2>投稿</h2>
-          <nostr-list
-            filters={JSON.stringify([{ kinds: [1], authors: [result.hex], limit: 30 }])}
-            relays={cacheRelay.viewRelays}
-            theme="light"
-          ></nostr-list>
-        {/if}
+        <p class="empty">読み込み中…</p>
       {/if}
-    {/key}
+    {:else}
+      {#if cacheRelay.resolved}
+        {#key `${result.user}|${relayKey}`}
+          <nostr-profile use:truncateName={'card'} user={result.user} relays={cacheRelay.viewRelays} display="card"></nostr-profile>
+        {/key}
+      {/if}
+      {#if result.hex}
+        <h2>投稿</h2>
+        <TimelineEmbed filters={[{ kinds: [1], authors: [result.hex], limit: 30 }]} />
+      {/if}
+    {/if}
   {:else}
     <p class="empty">キーワード（ハッシュタグ扱い）か、npub / nprofile / note1 / nevent1 / NIP-05 アドレスを入力してください。</p>
   {/if}

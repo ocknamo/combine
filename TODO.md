@@ -23,9 +23,13 @@
 
 ## Nostr Web Components（表示）のカスタマイズ
 
-※ ホームタイムラインは nostr-cache（`nostr-timeline` / `nostr-follow-timeline`）へ移行済みで、
-この節の対象は通知・プロフィール・検索の `nostr-list` / `nostr-note` / `nostr-profile` のみ。
-ただし nostr-cache 側も Shadow DOM でアクションボタンを持たないため、課題そのものは同じ。
+※ 投稿一覧（ホームタイムライン・通知・プロフィールの投稿・検索結果）はすべて
+nostr-cache（`nostr-timeline` / `nostr-follow-timeline`）へ移行済みで、`nostr-list` は未使用。
+この節の対象は残った `nostr-note` / `nostr-profile` のみ。
+
+※ アクションボタンについては、nostr-cache 側に `actions` 属性（各投稿の下にボタンを描画し、
+クリックをイベントで通知する）が入っている。投稿一覧が全部そちらに乗ったので、下記「ハイブリッド案」
+の 1〜2 を自前で組まずに済む可能性がある。いずれにせよ不足しているのは publish 処理。
 
 ※ **キャッシュの話は解決済み**（この節の対象外）。通知・プロフィール・検索も
 nostr-cache のブラウザ内リレーを経由するようになった（`src/lib/cacheRelay.svelte.ts`）。

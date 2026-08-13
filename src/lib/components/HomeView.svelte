@@ -138,7 +138,7 @@ const relays = $derived(relaysAttr(auth.relays));
   {/if}
 
   <p class="credit">
-    タイムラインの表示と全ビューのキャッシュには
+    投稿一覧の表示と全ビューのキャッシュには
     <a href="https://github.com/ocknamo/nostr-cache" target="_blank" rel="noreferrer">nostr-cache</a>
     の透過キャッシュを、プロフィールなどの表示には
     <a href="https://github.com/TsukemonoGit/nostr-web-components" target="_blank" rel="noreferrer">Nostr Web Components</a>
@@ -183,23 +183,7 @@ const relays = $derived(relaysAttr(auth.relays));
     display: none;
   }
 
-  /*
-    The widget renders into a shadow root, so these custom properties are the
-    only way in. Names come from the timeline-embed README.
-  */
-  nostr-timeline,
-  nostr-follow-timeline {
-    --nt-fg: var(--text);
-    --nt-muted: var(--text-muted);
-    --nt-border: var(--border);
-    --nt-separator: var(--border);
-    --nt-name-fg: var(--text);
-    --nt-handle-fg: var(--text-muted);
-    --nt-link-fg: var(--gold-strong);
-    --nt-mention-fg: var(--gold-strong);
-    --nt-quote-bar: var(--gold);
-    --nt-media-bg: var(--bg-subtle);
-  }
+  /* The widgets themselves are themed in `app.css` — every view embeds one. */
 
   .empty {
     text-align: center;
