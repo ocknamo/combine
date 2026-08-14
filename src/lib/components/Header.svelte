@@ -75,6 +75,12 @@ const relayKey = $derived(cacheRelay.viewRelays.join(','));
     border: none;
     background: transparent;
     padding: 0.2rem 0.4rem;
+    /* nostr-profile's name can render unclamped (white-space: nowrap) for a
+       frame before truncateName's shadow-root style lands, and as a flex item
+       this button's default min-width: auto would let that push the header
+       (and the whole page) wider than the viewport. */
+    min-width: 0;
+    overflow: hidden;
   }
 
   .ghost:hover {
