@@ -10,7 +10,7 @@ import {
   relaysAttr,
 } from '../nostrCache';
 import { openPostOnAction } from '../postAction';
-import { POST_ACTIONS_ATTR } from '../postRef';
+import { MATERIAL_ICONS, POST_ACTIONS_ATTR } from '../postRef';
 
 type Feed = 'follows' | 'global';
 
@@ -124,6 +124,7 @@ const relays = $derived(relaysAttr(auth.relays));
           kinds="1"
           limit="50"
           actions={POST_ACTIONS_ATTR}
+          material-icons={MATERIAL_ICONS}
           db-name={NOSTR_CACHE_DB_NAME}
           profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
         ></nostr-follow-timeline>
@@ -136,6 +137,7 @@ const relays = $derived(relaysAttr(auth.relays));
           limit="50"
           {relays}
           actions={POST_ACTIONS_ATTR}
+          material-icons={MATERIAL_ICONS}
           db-name={NOSTR_CACHE_DB_NAME}
           profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
         ></nostr-timeline>

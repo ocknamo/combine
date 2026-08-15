@@ -35,10 +35,19 @@ export function postPath(ref: string): string {
 /**
  * The button nostr-cache renders under every post in a timeline.
  *
- * No icon: the element would want either an emoji glyph or the Material Icons
- * font, and the app loads neither.
+ * `icon` is a Material Symbols ligature name; the element only renders it as
+ * a glyph on a host that also sets `material-icons` (see `MATERIAL_ICONS`
+ * below), which is what pulls in the Google Fonts stylesheet. `label` still
+ * carries the accessible name either way.
  */
-export const POST_DETAIL_ACTION = { id: 'detail', label: '詳細' } as const;
+export const POST_DETAIL_ACTION = {
+  id: 'detail',
+  label: '詳細',
+  icon: 'open_in_full',
+} as const;
+
+/** The `material-icons` variant every action-bearing element uses. */
+export const MATERIAL_ICONS = 'outlined';
 
 /** The `actions` attribute value. One definition for every list in the app. */
 export const POST_ACTIONS_ATTR = JSON.stringify([POST_DETAIL_ACTION]);

@@ -43,6 +43,8 @@
   - `nostr-post` が本文を省略なしで描画し、リアクション（kind 7）を絵文字ごとに集計して並べる
   - 一覧の各投稿に出る「詳細」ボタンから開く。ボタンは nostr-cache の `actions` 属性で
     描画され、タップは `nostr-timeline:action` として届く（`src/lib/postRef.ts`）
+  - アイコンは Material Symbols（`material-icons="outlined"`）。nostr-cache が
+    Google Fonts から該当スタイルシートを読み込む
   - 通知タブのリポスト・リアクション・Zap では、そのイベント自体ではなく `e` タグの指す
     元の投稿を開く
 - 投稿・返信・引用（eHagaki 埋め込み）
