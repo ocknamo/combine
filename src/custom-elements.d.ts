@@ -16,33 +16,62 @@ type NostrElementAttributes = HTMLAttributes<HTMLElement> & {
 };
 
 /**
- * nostr-cache's timeline widget (loaded by `lib/nostrCache.ts`). Separate from
- * the Nostr Web Components attributes above: every value here is a string, and
- * `relays` is comma-separated rather than an array.
+ * What every nostr-cache element (loaded by `lib/nostrCache.ts`) understands.
+ * Separate from the Nostr Web Components attributes above: every value here is
+ * a string, and `relays` is comma-separated rather than an array.
+ *
+ * The `show-*` and `debug` switches are on unless the value is the literal
+ * string `false`, so `boolean` is allowed only because Svelte stringifies it to
+ * exactly that — any other falsy-looking value would still read as on.
  */
 type NostrCacheAttributes = HTMLAttributes<HTMLElement> & {
   relays?: string;
-  kinds?: string;
-  limit?: string;
   'db-name'?: string;
   'profile-freshness'?: string;
   'follows-freshness'?: string;
   debug?: string | boolean;
-  'show-avatars'?: string;
-  'show-media'?: string;
+  'show-avatars'?: string | boolean;
+  'show-media'?: string | boolean;
+  'show-embeds'?: string | boolean;
+  /** JSON array of `{ id, label, icon?, … }`; see `lib/postRef.ts`. */
+  actions?: string;
+  'material-icons'?: string | boolean;
+  'material-icons-font'?: string;
 };
 
 type NostrCacheTimelineAttributes = NostrCacheAttributes & {
   filters?: string;
+  kinds?: string;
   authors?: string;
+  limit?: string;
+  /** Deprecated alias for `debug`. */
+  'show-origin'?: string | boolean;
 };
 
 type NostrCacheFollowTimelineAttributes = NostrCacheAttributes & {
   /** hex, npub or nprofile. Required — there is no default. */
   pubkey?: string;
+  kinds?: string;
+  limit?: string;
   'max-follows'?: string;
   'include-self'?: string | boolean;
   'since-days'?: string;
+};
+
+/**
+ * One post as the subject of the page. `kind` here is the singular kind of a
+ * `naddr`-style coordinate (`author` + `kind` + `identifier`), not the
+ * timelines' `kinds` filter.
+ */
+type NostrCachePostAttributes = NostrCacheAttributes & {
+  /** 64-hex, note1, nevent1 or naddr1. */
+  'event-id'?: string;
+  author?: string;
+  kind?: string;
+  identifier?: string;
+  'show-reactions'?: string | boolean;
+  'reactions-limit'?: string | number;
+  'reactions-open'?: string | boolean;
 };
 
 declare module 'svelte/elements' {
@@ -55,5 +84,6 @@ declare module 'svelte/elements' {
     'nostr-naddr': NostrElementAttributes;
     'nostr-timeline': NostrCacheTimelineAttributes;
     'nostr-follow-timeline': NostrCacheFollowTimelineAttributes;
+    'nostr-post': NostrCachePostAttributes;
   }
 }

@@ -1,21 +1,19 @@
 <script lang="ts">
 import { cacheRelay } from '../cacheRelay.svelte';
 import { toHexPubkey } from '../nip19';
+import { normalizePostRef, postPath } from '../postRef';
+import { router } from '../router.svelte';
 import { truncateName } from '../truncateName';
 import TimelineEmbed from './TimelineEmbed.svelte';
 
-type Result =
-  | { kind: 'user'; user: string; hex: string | null }
-  | { kind: 'note'; id: string }
-  | { kind: 'tag'; tag: string };
+type Result = { kind: 'user'; user: string; hex: string | null } | { kind: 'tag'; tag: string };
 
 let query = $state('');
 let result = $state<Result | null>(null);
 
-// `nostr-note` and `nostr-profile` ignore a changed `relays`, so the {#key}
-// below rebuilds them when the connection target moves. Its other half is
-// `result`, not the bound `query`: typing the next search must not rebuild the
-// result on screen.
+// `nostr-profile` ignores a changed `relays`, so the {#key} below rebuilds it
+// when the connection target moves. Its other half is `result`, not the bound
+// `query`: typing the next search must not rebuild the result on screen.
 const relayKey = $derived(cacheRelay.viewRelays.join(','));
 
 function search(event: SubmitEvent) {
@@ -25,10 +23,19 @@ function search(event: SubmitEvent) {
     result = null;
     return;
   }
+  // A post reference is a place, not a result: it gets its own page so it can
+  // be linked to and come back from. Bare hex is left to the pubkey branch
+  // below, which is what it has always meant here. Something that only looks
+  // like a reference falls through to the searches.
+  if (/^(note1|nevent1|naddr1)/i.test(value)) {
+    const ref = normalizePostRef(value);
+    if (ref) {
+      router.go(postPath(ref));
+      return;
+    }
+  }
   if (/^(npub1|nprofile1)/i.test(value)) {
     result = { kind: 'user', user: value, hex: toHexPubkey(value) };
-  } else if (/^(note1|nevent1)/i.test(value)) {
-    result = { kind: 'note', id: value };
   } else if (/^[0-9a-f]{64}$/i.test(value)) {
     result = { kind: 'user', user: value.toLowerCase(), hex: value.toLowerCase() };
   } else if (value.includes('@') || /^[\w.-]+\.[a-z]{2,}$/i.test(value)) {
@@ -55,14 +62,6 @@ function search(event: SubmitEvent) {
     {#if result.kind === 'tag'}
       <h2>#{result.tag}</h2>
       <TimelineEmbed filters={[{ kinds: [1], '#t': [result.tag], limit: 30 }]} />
-    {:else if result.kind === 'note'}
-      {#if cacheRelay.resolved}
-        {#key `${result.id}|${relayKey}`}
-          <nostr-note nevent={result.id} relays={cacheRelay.viewRelays} theme="light"></nostr-note>
-        {/key}
-      {:else}
-        <p class="empty">読み込み中…</p>
-      {/if}
     {:else}
       {#if cacheRelay.resolved}
         {#key `${result.user}|${relayKey}`}
@@ -75,7 +74,7 @@ function search(event: SubmitEvent) {
       {/if}
     {/if}
   {:else}
-    <p class="empty">キーワード（ハッシュタグ扱い）か、npub / nprofile / note1 / nevent1 / NIP-05 アドレスを入力してください。</p>
+    <p class="empty">キーワード（ハッシュタグ扱い）か、npub / nprofile / note1 / nevent1 / naddr1 / NIP-05 アドレスを入力してください。</p>
   {/if}
 </section>
 
