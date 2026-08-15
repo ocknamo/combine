@@ -95,11 +95,13 @@ input[type="search"]:focus {
   border-color: var(--gold);
 }
 
-/* nostr-cache's timeline widgets render into a shadow root, so these custom
-   properties are the only way in. Global rather than per view: every list in
-   the app embeds one. Names come from the timeline-embed README. */
+/* nostr-cache's widgets render into a shadow root, so these custom properties
+   are the only way in. Global rather than per view: every list in the app
+   embeds one, and the detail page embeds the third element. Names come from the
+   timeline-embed README. */
 nostr-timeline,
-nostr-follow-timeline {
+nostr-follow-timeline,
+nostr-post {
   --nt-fg: var(--text);
   --nt-muted: var(--text-muted);
   --nt-border: var(--border);
@@ -110,6 +112,19 @@ nostr-follow-timeline {
   --nt-mention-fg: var(--gold-strong);
   --nt-quote-bar: var(--gold);
   --nt-media-bg: var(--bg-subtle);
+
+  /* The 詳細 button under every post in a list (see `lib/postRef.ts`). */
+  --nt-action-fg: var(--text-muted);
+  --nt-action-hover-fg: var(--gold-strong);
+  --nt-action-hover-bg: var(--bg-subtle);
+}
+
+/* Only the detail element has reactions. */
+nostr-post {
+  --nt-reaction-chip-bg: var(--bg-subtle);
+  --nt-reaction-chip-hover-bg: var(--bg);
+  --nt-reaction-chip-open-border: var(--gold);
+  --nt-reactor-font-size: 0.8rem;
 }
 
 /* Nosskey signing iframe overlay: the iframe toggles its own display,

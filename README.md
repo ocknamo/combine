@@ -11,8 +11,9 @@
 | 署名（パスキー） | [Nosskey](https://nosskey.app) | [nosskey-iframe](https://github.com/ocknamo/nosskey-sdk) による iframe 埋め込み |
 | 投稿エディタ | [eHagaki](https://lokuyow.github.io/ehagaki/) | iframe 埋め込み + `ehagaki.embed` postMessage 連携 |
 | 投稿一覧（タイムライン・通知・プロフィール・検索） | [nostr-cache](https://github.com/ocknamo/nostr-cache) | ホスト済み Web Components (`nostr-timeline` / `nostr-follow-timeline`) |
+| 個別投稿表示 | [nostr-cache](https://github.com/ocknamo/nostr-cache) | ホスト済み Web Component (`nostr-post`) |
 | イベント取得のキャッシュ | [nostr-cache](https://github.com/ocknamo/nostr-cache) | ブラウザ内リレーを全ビューの手前に透過キャッシュとして挟む |
-| プロフィール・単体ノート表示 | [Nostr Web Components](https://github.com/TsukemonoGit/nostr-web-components) | Web Components (`nostr-profile` / `nostr-note`) |
+| プロフィール表示 | [Nostr Web Components](https://github.com/TsukemonoGit/nostr-web-components) | Web Components (`nostr-profile`) |
 
 秘密鍵はこのアプリに渡りません。eHagaki からの署名要求（`rpc.request`）は親クライアントが受け取り、Nosskey のパスキー署名へ委譲します。
 
@@ -32,16 +33,22 @@
     IndexedDB のキャッシュから即座に描画される
   - タイムラインだけでなく、通知・プロフィール・検索も同じキャッシュを通る。
     ブラウザ内リレーは `globalThis.WebSocket` を差し替えて 1 つの URL への接続だけを
-    横取りする仕組みなので、`nostr-timeline` は自分でリレーを掴んで、Nostr Web Components
-    （`nostr-profile` / `nostr-note`）は接続先をその URL に向けることで載る
+    横取りする仕組みなので、`nostr-timeline` / `nostr-post` は自分でリレーを掴んで、
+    Nostr Web Components（`nostr-profile`）は接続先をその URL に向けることで載る
     （どちらも内部は rx-nostr）
   - プロフィール（kind 0）は 1 時間の鮮度ウィンドウが効き、Header とプロフィール画面が
     同じ pubkey を取り直さなくなる
   - nostr-cache に到達できない環境では自動的に上流リレー直結へフォールバックする
+- 個別投稿画面（`#/post/<note1 / nevent1 / naddr1 / hex>`）
+  - `nostr-post` が本文を省略なしで描画し、リアクション（kind 7）を絵文字ごとに集計して並べる
+  - 一覧の各投稿に出る「詳細」ボタンから開く。ボタンは nostr-cache の `actions` 属性で
+    描画され、タップは `nostr-timeline:action` として届く（`src/lib/postRef.ts`）
+  - 通知タブのリポスト・リアクション・Zap では、そのイベント自体ではなく `e` タグの指す
+    元の投稿を開く
 - 投稿・返信・引用（eHagaki 埋め込み）
 - 通知（メンション・リポスト・リアクション・Zap）
 - プロフィール表示・自分の投稿一覧・npub コピー
-- 検索（ハッシュタグ / npub / nprofile / note1 / nevent1 / NIP-05）
+- 検索（ハッシュタグ / npub / nprofile / NIP-05。note1 / nevent1 / naddr1 は個別投稿画面へ遷移）
 - シングルカラム・モバイルファーストのレスポンシブデザイン
 
 ## 開発

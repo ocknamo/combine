@@ -6,6 +6,7 @@ import ComposeView from './lib/components/ComposeView.svelte';
 import Header from './lib/components/Header.svelte';
 import HomeView from './lib/components/HomeView.svelte';
 import NotificationsView from './lib/components/NotificationsView.svelte';
+import PostView from './lib/components/PostView.svelte';
 import ProfileView from './lib/components/ProfileView.svelte';
 import SearchView from './lib/components/SearchView.svelte';
 import TabBar from './lib/components/TabBar.svelte';
@@ -96,6 +97,8 @@ $effect(() => {
       <ProfileView user={auth.pubkey} own />
     {:else if route.name === 'user'}
       <ProfileView user={route.param} />
+    {:else if route.name === 'post'}
+      <PostView id={route.param} />
     {/if}
 
     <!-- Compose stays mounted so the eHagaki draft and bridge survive tab switches -->

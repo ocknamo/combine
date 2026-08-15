@@ -9,6 +9,8 @@ import {
   NOSTR_CACHE_PROFILE_FRESHNESS,
   relaysAttr,
 } from '../nostrCache';
+import { openPostOnAction } from '../postAction';
+import { POST_ACTIONS_ATTR } from '../postRef';
 
 type Feed = 'follows' | 'global';
 
@@ -65,7 +67,8 @@ onMount(() => {
 const relays = $derived(relaysAttr(auth.relays));
 </script>
 
-<section>
+<!-- One listener covers both feeds: the action event bubbles and is composed. -->
+<section use:openPostOnAction>
   {#if auth.loggedIn}
     <div class="feed-switch" role="tablist" aria-label="タイムライン切り替え">
       <button
@@ -96,9 +99,10 @@ const relays = $derived(relaysAttr(auth.relays));
     they read through the same in-page relay and the same IndexedDB, so it is a
     second subscription, not a second trip upstream.
 
-    `db-name`, `relays` and `profile-freshness` are kept identical between them,
-    and match what `App.svelte` acquires the relay with — whoever gets there
-    first configures it, and a mismatch is ignored with a console warning.
+    `db-name`, `relays`, `profile-freshness` and `actions` are kept identical
+    between them, and the first three match what `App.svelte` acquires the relay
+    with — whoever gets there first configures it, and a mismatch is ignored
+    with a console warning.
   -->
   {#if failed}
     <p class="empty">
@@ -119,6 +123,7 @@ const relays = $derived(relaysAttr(auth.relays));
           {relays}
           kinds="1"
           limit="50"
+          actions={POST_ACTIONS_ATTR}
           db-name={NOSTR_CACHE_DB_NAME}
           profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
         ></nostr-follow-timeline>
@@ -130,6 +135,7 @@ const relays = $derived(relaysAttr(auth.relays));
           kinds="1"
           limit="50"
           {relays}
+          actions={POST_ACTIONS_ATTR}
           db-name={NOSTR_CACHE_DB_NAME}
           profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
         ></nostr-timeline>

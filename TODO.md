@@ -25,11 +25,13 @@
 
 ※ 投稿一覧（ホームタイムライン・通知・プロフィールの投稿・検索結果）はすべて
 nostr-cache（`nostr-timeline` / `nostr-follow-timeline`）へ移行済みで、`nostr-list` は未使用。
-この節の対象は残った `nostr-note` / `nostr-profile` のみ。
+個別投稿も `nostr-post` へ移行済みで、`nostr-list` / `nostr-note` は未使用。
+この節の対象は残った `nostr-profile` のみ。
 
-※ アクションボタンについては、nostr-cache 側に `actions` 属性（各投稿の下にボタンを描画し、
-クリックをイベントで通知する）が入っている。投稿一覧が全部そちらに乗ったので、下記「ハイブリッド案」
-の 1〜2 を自前で組まずに済む可能性がある。いずれにせよ不足しているのは publish 処理。
+※ アクションボタンの土台は解決済み。nostr-cache の `actions` 属性で各投稿の下にボタンを描画し、
+`nostr-timeline:action` でクリックを受け取る形が全タイムラインに入った（`src/lib/postRef.ts` /
+`src/lib/postAction.ts`）。いま置いてあるのは詳細画面へ飛ぶ「詳細」ボタンだけだが、
+下記「ハイブリッド案」の 1〜2 を自前で組む必要はもう無い。残るのは 3 の publish 処理だけ。
 
 ※ **キャッシュの話は解決済み**（この節の対象外）。通知・プロフィール・検索も
 nostr-cache のブラウザ内リレーを経由するようになった（`src/lib/cacheRelay.svelte.ts`）。
