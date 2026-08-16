@@ -64,3 +64,35 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
     ユーザーの write リレーで publish させるには **eHagaki 側プロトコルの拡張提案**（例: `composer.setContext`
     で `relays` を渡す）が必要。
   - 補足: NIP-65（kind 10002）の自分のリレーリストをリレーから取得する案も併用検討可。
+
+
+## ユーザー詳細画面（`#/user/…`）の残り
+
+導線そのものは対応済み（投稿カードのアイコン・表示名から開く。nostr-cache 側は
+[ocknamo/nostr-cache#77](https://github.com/ocknamo/nostr-cache/issues/77) /
+[#78](https://github.com/ocknamo/nostr-cache/pull/78) で `author-action` 属性が入った）。
+残っているのは下記。
+
+- [ ] **導線を残りの箇所へ広げる**（nostr-cache 側の対応が先）
+  - 押せるようになったのは投稿カードの著者だけ。**引用カードのヘッダ・リアクター一覧の各行・
+    本文中の `nostr:` メンション**は据え置きで、上流が別 issue に切り出す想定。
+    特にメンションは現在「行き先が無いので意図的にリンクにしていない」ものなので効果が大きい。
+  - combine 側は `pubkey` を読んで飛ぶだけなので、上流が同じ `nostr-timeline:action` に
+    載せてくれれば**追加の実装は要らない**（`actionPath` がそのまま裁く）。
+
+- [ ] **検索結果とユーザー詳細画面の重複を解消する**
+  - `SearchView` は npub / nprofile / NIP-05 の検索結果を、その場でプロフィールカード＋
+    投稿一覧として描いている。ユーザー詳細画面と中身が同じなので、カードを
+    `#/user/…` への入口にして一覧はそちらに任せる案。
+  - `nostr-profile` は `href="#/user/{id}" target="_self"` でカード自体をリンクにできる
+    （`{id}` は `user` 属性の値がそのまま入る。`target` の既定が `_blank` なので明示が要る）。
+  - ただし **NIP-05 で検索した場合は `user` がメールアドレス形式**で、そのまま URL に載せると
+    `toHexPubkey` が解決できず「ユーザーが見つかりませんでした」になる。hex に解決できた
+    ときだけリンクにする等の分岐が要る。
+
+- [ ] **フォロー / フォロー解除**
+  - kind 3 の publish が必要。publish 経路が無いのは上記「Nostr Web Components」節と同じ未解決事項。
+
+- [ ] **「この人にメンションして投稿」**
+  - `composer.setContext` の `content` に `nostr:npub…` を渡せば実現できる
+    （ブリッジは対応済み・UI から未使用）。ユーザー詳細画面はその入口として自然。

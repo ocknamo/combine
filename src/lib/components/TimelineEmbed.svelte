@@ -13,8 +13,9 @@
  *
  * `actions` is the same story: it puts the 詳細 button under every row, which is
  * how notifications, a profile's posts and hashtag results reach the detail
- * page. Its taps arrive as `nostr-timeline:action`, which `openPostOnAction`
- * turns into navigation.
+ * page. `author-action` does the same for each card's avatar and display name,
+ * which is how they reach a person's page. Both arrive as
+ * `nostr-timeline:action`, which `navigateOnAction` turns into navigation.
  */
 import { onMount } from 'svelte';
 import { auth } from '../auth.svelte';
@@ -28,8 +29,8 @@ import {
   type NostrFilter,
   relaysAttr,
 } from '../nostrCache';
-import { openPostOnAction } from '../postAction';
-import { MATERIAL_ICONS, POST_ACTIONS_ATTR } from '../postRef';
+import { navigateOnAction } from '../postAction';
+import { AUTHOR_ACTION_ID, MATERIAL_ICONS, POST_ACTIONS_ATTR } from '../postRef';
 
 let { filters }: { filters: NostrFilter[] } = $props();
 
@@ -63,10 +64,11 @@ const filtersJson = $derived(filtersAttr(filters));
   <p class="empty">読み込み中…</p>
 {:else}
   <nostr-timeline
-    use:openPostOnAction
+    use:navigateOnAction
     filters={filtersJson}
     {relays}
     actions={POST_ACTIONS_ATTR}
+    author-action={AUTHOR_ACTION_ID}
     material-icons={MATERIAL_ICONS}
     db-name={NOSTR_CACHE_DB_NAME}
     profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
