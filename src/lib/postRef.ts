@@ -1,12 +1,13 @@
 /**
- * What a post reference is, where it lives in the URL, and how a tap on a
- * timeline's action button turns into one.
+ * What a post or a person looks like in the URL, and how a tap on a timeline
+ * turns into one.
  *
- * Imports nothing on purpose: the router touches `location` at module scope and
- * the suite runs without a DOM, so anything reachable from a test has to stay
- * clear of it. The Svelte action that actually navigates lives in
- * `postAction.ts`.
+ * Imports nothing that reaches the DOM on purpose: the router touches
+ * `location` at module scope and the suite runs without a DOM, so anything
+ * reachable from a test has to stay clear of it. `nip19` is pure arithmetic and
+ * safe. The Svelte action that actually navigates lives in `postAction.ts`.
  */
+import { toHexPubkey, toNpub } from './nip19';
 
 const HEX64 = /^[0-9a-f]{64}$/;
 /** bech32 without the four characters its alphabet leaves out (1, b, i, o). */
@@ -32,6 +33,11 @@ export function postPath(ref: string): string {
   return `/post/${encodeURIComponent(ref)}`;
 }
 
+/** Hash path of a person's page. Paired with `parseRoute`. */
+export function userPath(ref: string): string {
+  return `/user/${encodeURIComponent(ref)}`;
+}
+
 /**
  * The button nostr-cache renders under every post in a timeline.
  *
@@ -51,6 +57,17 @@ export const MATERIAL_ICONS = 'outlined';
 
 /** The `actions` attribute value. One definition for every list in the app. */
 export const POST_ACTIONS_ATTR = JSON.stringify([POST_DETAIL_ACTION]);
+
+/**
+ * The `author-action` attribute value: what a tap on a card's avatar or display
+ * name reports itself as.
+ *
+ * nostr-cache reserves no id of its own for this — the attribute *is* the
+ * opt-in, and its value is ours to pick, so it only has to differ from every id
+ * in `POST_ACTIONS_ATTR`. The accessible name is left at the element's default
+ * (「プロフィールを開く」), which is exactly where this goes.
+ */
+export const AUTHOR_ACTION_ID = 'open-profile';
 
 /** The event all three nostr-cache elements dispatch when an action is used. */
 export const POST_ACTION_EVENT = 'nostr-timeline:action';
@@ -79,9 +96,25 @@ function referencedEventId(tags: unknown): string | null {
  * it. Reads defensively: the detail crosses a shadow boundary from a script
  * this app does not build.
  */
-export function postActionPath(detail: unknown): string | null {
+export function actionPath(detail: unknown): string | null {
   if (typeof detail !== 'object' || detail === null) return null;
   const record = detail as Record<string, unknown>;
+
+  // A tap on the author's avatar or display name. The person pressed comes from
+  // `pubkey`, which nostr-cache adds for this press alone — deliberately not
+  // from `event.pubkey`, so the link stays right if the widget ever extends the
+  // same press to a quote's header or a reactor row, where the person pressed
+  // is not the event's author. npub in the URL because it is the form a user
+  // can read and share; `parseRoute` takes hex and nprofile just as well.
+  if (record['actionId'] === AUTHOR_ACTION_ID) {
+    const pubkey = record['pubkey'];
+    // Documented as hex, normalised anyway: it costs one call, and it is the
+    // difference between tolerating an npub here and dropping the tap silently.
+    const hex = typeof pubkey === 'string' ? toHexPubkey(pubkey) : null;
+    const npub = hex ? toNpub(hex) : null;
+    return npub ? userPath(npub) : null;
+  }
+
   if (record['actionId'] !== POST_DETAIL_ACTION.id) return null;
 
   const event = record['event'];

@@ -65,82 +65,34 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
     で `relays` を渡す）が必要。
   - 補足: NIP-65（kind 10002）の自分のリレーリストをリレーから取得する案も併用検討可。
 
-## 他ユーザーのプロフィール画面（`#/user/…`）と、そこへの導線
 
-### 現状の整理
+## ユーザー詳細画面（`#/user/…`）の残り
 
-- 画面そのものは **半分できている**。`#/user/<npub / nprofile / hex>` は `parseRoute` に
-  あり（`routes.ts` / `routes.test.ts`）、`App.svelte` が `ProfileView user={route.param}`
-  を描画する。`ProfileView` は `own` が false なら鍵の管理・ログアウトを出さず、
-  `nostr-profile` のカード＋その人の kind 1 一覧（`TimelineEmbed`）＋npub コピーを出す。
-- 足りていないのは **導線と、ドリルダウン画面としての体裁**。
-  - アプリ内から `#/user/…` へ飛ぶリンクが **1 つも無い**（`grep '#/user'` はテストしか
-    ヒットしない）。URL を直接叩かない限り到達できない。
-  - `PostView` にある `BackBar` が無いので、戻る手段がタブバーしかない。
-  - 検索結果のプロフィールカードは `SearchView` 内に直接出るだけで、ユーザー画面へ
-    遷移しない（＝同じ内容が 2 か所にある状態）。
+導線そのものは対応済み（投稿カードのアイコン・表示名から開く。nostr-cache 側は
+[ocknamo/nostr-cache#77](https://github.com/ocknamo/nostr-cache/issues/77) /
+[#78](https://github.com/ocknamo/nostr-cache/pull/78) で `author-action` 属性が入った）。
+残っているのは下記。
 
-### 「ユーザーアイコンからリンク」の実現性
+- [ ] **導線を残りの箇所へ広げる**（nostr-cache 側の対応が先）
+  - 押せるようになったのは投稿カードの著者だけ。**引用カードのヘッダ・リアクター一覧の各行・
+    本文中の `nostr:` メンション**は据え置きで、上流が別 issue に切り出す想定。
+    特にメンションは現在「行き先が無いので意図的にリンクにしていない」ものなので効果が大きい。
+  - combine 側は `pubkey` を読んで飛ぶだけなので、上流が同じ `nostr-timeline:action` に
+    載せてくれれば**追加の実装は要らない**（`actionPath` がそのまま裁く）。
 
-タイムラインの投稿カードは nostr-cache（`nostr-timeline` / `nostr-follow-timeline` /
-`nostr-post`）が Shadow DOM 内に描画する。バンドル（`https://ocknamo.github.io/nostr-cache/nostr-timeline.js`）
-を読んで確認した事実:
+- [ ] **検索結果とユーザー詳細画面の重複を解消する**
+  - `SearchView` は npub / nprofile / NIP-05 の検索結果を、その場でプロフィールカード＋
+    投稿一覧として描いている。ユーザー詳細画面と中身が同じなので、カードを
+    `#/user/…` への入口にして一覧はそちらに任せる案。
+  - `nostr-profile` は `href="#/user/{id}" target="_self"` でカード自体をリンクにできる
+    （`{id}` は `user` 属性の値がそのまま入る。`target` の既定が `_blank` なので明示が要る）。
+  - ただし **NIP-05 で検索した場合は `user` がメールアドレス形式**で、そのまま URL に載せると
+    `toHexPubkey` が解決できず「ユーザーが見つかりませんでした」になる。hex に解決できた
+    ときだけリンクにする等の分岐が要る。
 
-- アイコンは `<img class="avatar" part="avatar">`（プロフィール画像が無い場合は
-  `<span class="avatar fallback" part="avatar">`）。**リンクにも button にもなっておらず、
-  クリック用のイベントも出さない**。
-- ウィジェットが投げるカスタムイベントは `nostr-timeline:action` **のみ**。
-  detail は `{ actionId, event, status }` で、`event` は完全な Nostr イベント＝**pubkey を含む**。
-- アクションボタンは `data-action="<id>"` と `part="action action-<id>"` を持ち、
-  1 カードあたり最大 8 個まで置ける（超過分は警告して無視される）。
-- 内部コンポーネントは custom element として define されていない（define されているのは
-  3 タグだけ）ので、`part` は全部 **ホストから 1 段で届く**。
-  → `nostr-timeline::part(avatar) { cursor: pointer }` のような装飾は外から可能。
-- アイコンから pubkey を引く公式な口は無い。実装詳細としては投稿ヘッダの
-  `<span class="identity" title="<hex pubkey>">` に pubkey が入っているが、
-  これは文書化されていない内部実装。
+- [ ] **フォロー / フォロー解除**
+  - kind 3 の publish が必要。publish 経路が無いのは上記「Nostr Web Components」節と同じ未解決事項。
 
-つまり **「アイコンそのものをリンクにする」は、今の nostr-cache では素直にはできない**。
-
-### 進め方（推奨）
-
-1. **まず今すぐできる形で導線を通す（nostr-cache の公式 API だけで完結）**
-   - `POST_ACTIONS_ATTR`（`postRef.ts`）に 2 つ目のアクション
-     `{ id: 'profile', label: 'プロフィール', icon: 'person' }` を足す。
-   - `postActionPath` を actionId で分岐させ、`profile` は
-     `/user/<npub>`（`toNpub(event.pubkey)`）を返す。詳細ボタン用の
-     「kind 6/7/9735 は `e` タグを辿る」ルールは **適用しない**。通知タブでは
-     「リアクションした本人」を開くのが自然なので、`event.pubkey` をそのまま使う。
-   - `PostView` の `nostr-post` にも `actions` を付ける（`profile` だけ。`detail` は
-     自分自身へのリンクになるので現状どおり付けない）。
-   - これでホーム / 通知 / プロフィールの投稿 / 検索結果すべてのカードから
-     ユーザー画面へ行けるようになる。
-2. **画面側の仕上げ**
-   - `ProfileView` に `own` でないとき `BackBar label="ユーザー"` を出す（`PostView` と同じ形）。
-   - URL に載せる識別子は **npub** を推奨（人間が読める・共有できる。`parseRoute` は
-     hex/nprofile もそのまま受けるし `toHexPubkey` が吸収する）。
-   - `SearchView` のプロフィールカードは `href="#/user/{id}" target="_self"` にできる
-     （`nostr-profile` の `href` は `{id}` を `user` 属性の値でそのまま置換する。
-     `target` の既定は `_blank` なので `_self` の明示が必要）。カード自体を
-     ユーザー画面への入口にすれば、検索ビューから投稿一覧の重複を外せる。
-   - 自分自身の pubkey で `#/user/…` を開いた場合の扱い（`#/profile` へ寄せるか、
-     そのまま他人と同じ表示にするか）を決める。
-3. **アイコン自体をリンクにするのは nostr-cache 側の拡張が要る**（ocknamo/nostr-cache）
-   - 案 A（推奨）: `author-href="#/user/{pubkey}"` のようなテンプレート属性を足し、
-     アイコンと表示名を `<a>` で包む。JS 不要で、右クリック・新しいタブ・
-     スクリーンリーダーが全部そのまま効く。既存の `actions` と同じ
-     「ホストが挙動を決める」流儀にも合う。
-   - 案 B: アイコン/名前のクリックで `nostr-timeline:profile`（detail に `pubkey`）を出す。
-   - 案 C（最小）: アイコンか `<article>` に `data-pubkey` を出すだけ。ホスト側で
-     capture フェーズの click + `composedPath()` から拾える。
-   - 案 A が入るまでの繋ぎとして、combine 側で「アイコンのクリックを拾って、同じカードの
-     `button[data-action="profile"]` を `.click()` する」ことは技術的には可能だが、
-     内部 DOM 構造への依存になるので、上流に投げるほうを優先したい。
-
-### やらないこと（今回のスコープ外）
-
-- フォロー / フォロー解除ボタン: kind 3 の publish が要る。publish 経路が無いのは
-  上の「Nostr Web Components」節と同じ未解決事項。
-- 「この人にメンションして投稿」: `composer.setContext` の `content` に
-  `nostr:npub…` を渡せば実現できる（ブリッジは対応済み・UI 未使用）。
-  他ユーザー画面はその入口として自然なので、上記が済んだあとの候補。
+- [ ] **「この人にメンションして投稿」**
+  - `composer.setContext` の `content` に `nostr:npub…` を渡せば実現できる
+    （ブリッジは対応済み・UI から未使用）。ユーザー詳細画面はその入口として自然。

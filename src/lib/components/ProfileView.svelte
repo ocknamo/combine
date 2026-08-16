@@ -4,6 +4,7 @@ import { cacheRelay } from '../cacheRelay.svelte';
 import { toHexPubkey, toNpub } from '../nip19';
 import { toast } from '../toast.svelte';
 import { truncateName } from '../truncateName';
+import BackBar from './BackBar.svelte';
 import LoginGate from './LoginGate.svelte';
 import TimelineEmbed from './TimelineEmbed.svelte';
 
@@ -24,6 +25,12 @@ async function copyNpub() {
 </script>
 
 <section>
+  <!-- Only when drilled into: the tab bar has an entry for one's own profile,
+       but none for anybody else's, so this is the way back from there. -->
+  {#if !own}
+    <BackBar label="ユーザー" />
+  {/if}
+
   {#if own && !auth.loggedIn}
     <LoginGate message="プロフィールを表示するにはログインが必要です。" />
   {:else if !hex}

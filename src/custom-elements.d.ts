@@ -35,6 +35,15 @@ type NostrCacheAttributes = HTMLAttributes<HTMLElement> & {
   'show-embeds'?: string | boolean;
   /** JSON array of `{ id, label, icon?, … }`; see `lib/postRef.ts`. */
   actions?: string;
+  /**
+   * Makes a card's avatar and display name pressable, reporting the id given
+   * here. Its taps arrive as the same `nostr-timeline:action` the buttons use,
+   * with the pressed person's hex pubkey added as `pubkey` — a key that is
+   * absent for a button press.
+   */
+  'author-action'?: string;
+  /** Accessible name for the above. Defaults to 「プロフィールを開く」. */
+  'author-action-label'?: string;
   'material-icons'?: string | boolean;
   'material-icons-font'?: string;
 };

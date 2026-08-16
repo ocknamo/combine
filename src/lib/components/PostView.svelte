@@ -26,7 +26,8 @@ import {
   NOSTR_CACHE_PROFILE_FRESHNESS,
   relaysAttr,
 } from '../nostrCache';
-import { normalizePostRef } from '../postRef';
+import { navigateOnAction } from '../postAction';
+import { AUTHOR_ACTION_ID, normalizePostRef } from '../postRef';
 import BackBar from './BackBar.svelte';
 
 let { id = null }: { id?: string | null } = $props();
@@ -68,9 +69,13 @@ const relays = $derived(relaysAttr(auth.relays));
     <p class="empty">読み込み中…</p>
   {:else}
     <!-- No `actions`: the 詳細 button the timelines carry would only lead back
-         to the page it was pressed on. -->
+         to the page it was pressed on. `author-action` is a different matter —
+         it adds no row to the card, and the people on this page (the author,
+         and every author in the reply tree) are all somewhere else to go. -->
     <nostr-post
+      use:navigateOnAction
       event-id={ref}
+      author-action={AUTHOR_ACTION_ID}
       {relays}
       db-name={NOSTR_CACHE_DB_NAME}
       profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
