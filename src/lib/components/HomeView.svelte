@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { auth } from '../auth.svelte';
+import { cacheRelay } from '../cacheRelay.svelte';
 import {
   loadNostrTimeline,
   NOSTR_CACHE_DB_NAME,
@@ -64,7 +65,10 @@ onMount(() => {
 });
 
 // The widget parses a comma-separated string, unlike nostr-web-components.
-const relays = $derived(relaysAttr(auth.relays));
+// Read from `cacheRelay`, not `auth`: a changed `relays` attribute restarts the
+// widget, and `auth.relays` changes seconds into the session — see
+// `cacheRelay.svelte.ts`.
+const relays = $derived(relaysAttr(cacheRelay.upstreamRelays));
 </script>
 
 <!-- One listener covers both feeds: the action event bubbles and is composed. -->
@@ -112,7 +116,10 @@ const relays = $derived(relaysAttr(auth.relays));
       </a>
       に接続できない可能性があります。
     </p>
-  {:else if !ready}
+  {:else if !ready || !cacheRelay.resolved}
+    <!-- Waiting for the relay is waiting for the relay set to settle: a widget
+         mounted before that restarts, taking the page relay with it — the app
+         is not holding one yet. -->
     <p class="empty">読み込み中…</p>
   {:else}
     <!-- Dropped on logout: the element has no feed to show without a pubkey. -->

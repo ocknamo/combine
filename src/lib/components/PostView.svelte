@@ -8,16 +8,18 @@
  *
  * Two differences from the Nostr Web Components elements elsewhere in the app
  * are worth knowing before touching this: it acquires the page's cache relay
- * itself, so it takes the *upstream* relays and needs no wait on
- * `cacheRelay.resolved`; and it re-subscribes when its attributes change, so it
- * needs no {#key} to notice a new post or a new relay set.
+ * itself, so it takes the *upstream* relays rather than the intercept URL — it
+ * waits on `cacheRelay.resolved` all the same, since those relays are only
+ * settled once the relay has been started with them (see
+ * `cacheRelay.svelte.ts`); and it re-subscribes when its attributes change, so
+ * it needs no {#key} to notice a new post or a new relay set.
  *
  * `db-name` and `profile-freshness` have to agree with every other holder of
  * that relay — the first acquisition configures it and a mismatch is only a
  * console warning.
  */
 import { onMount } from 'svelte';
-import { auth } from '../auth.svelte';
+import { cacheRelay } from '../cacheRelay.svelte';
 import {
   loadNostrTimeline,
   NOSTR_CACHE_DB_NAME,
@@ -49,7 +51,7 @@ onMount(() => {
 // Checked here rather than left to the element so a bad link reads as the
 // app's own "not found" instead of the widget's error card.
 const ref = $derived(normalizePostRef(id));
-const relays = $derived(relaysAttr(auth.relays));
+const relays = $derived(relaysAttr(cacheRelay.upstreamRelays));
 </script>
 
 <section>
@@ -65,7 +67,7 @@ const relays = $derived(relaysAttr(auth.relays));
       </a>
       に接続できない可能性があります。
     </p>
-  {:else if !ready}
+  {:else if !ready || !cacheRelay.resolved}
     <p class="empty">読み込み中…</p>
   {:else}
     <!-- No `actions`: the 詳細 button the timelines carry would only lead back

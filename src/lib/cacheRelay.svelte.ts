@@ -1,16 +1,16 @@
-import { auth } from './auth.svelte';
 import { type CacheRelayHandle, startCacheRelay } from './nostrCache';
-import { pickViewRelays } from './relays';
+import { DEFAULT_RELAYS, pickViewRelays } from './relays';
 
 /**
  * Whether the page's cache relay is up, and what the views should connect to
  * as a result.
  *
  * `idle` is not "no cache" — it is "we do not know yet". Views wait for it to
- * resolve before mounting a Nostr element, because `nostr-list@0.3.0` does not
- * react to a changed `relays` prop: an element mounted against the upstream
- * relays would stay on them for its whole life, even after the relay came up a
- * moment later.
+ * resolve before mounting a Nostr element: `nostr-list@0.3.0` never adopts a
+ * changed `relays` prop, and the nostr-cache widgets adopt one by restarting
+ * (see {@link CacheRelayStore.upstreamRelays}). Waiting also makes the app's
+ * acquisition the page's first, so it is `dbName` and `profileFreshness` here
+ * that configure the relay.
  */
 type Status = 'idle' | 'ready' | 'unavailable';
 
@@ -18,6 +18,16 @@ class CacheRelayStore {
   status = $state<Status>('idle');
   /** The running relay's URL, or `null` when there is none to read through. */
   interceptUrl = $state<string | null>(null);
+
+  /**
+   * Upstream relays the running relay was started with.
+   *
+   * Views read this rather than `auth.relays`, which is replaced seconds into
+   * the session once the signing iframe answers: a nostr-cache widget restarts
+   * on a changed `relays` attribute and loses the events on screen. This moves
+   * only when the relay is rebuilt for the new set anyway.
+   */
+  upstreamRelays = $state<string[]>(DEFAULT_RELAYS);
 
   #handle: CacheRelayHandle | null = null;
   #starting: Promise<void> | null = null;
@@ -34,7 +44,7 @@ class CacheRelayStore {
 
   /** What to hand a Nostr Web Component's `relays` property. */
   get viewRelays(): string[] {
-    return pickViewRelays(this.interceptUrl, auth.relays);
+    return pickViewRelays(this.interceptUrl, this.upstreamRelays);
   }
 
   /**
@@ -47,6 +57,9 @@ class CacheRelayStore {
    */
   start(relays: string[]): Promise<void> {
     if (this.#starting) return this.#starting;
+    // Before the first await, so `resolved` never turns true next to the relays
+    // of the previous run.
+    this.upstreamRelays = relays;
     const generation = this.#generation;
     this.#starting = startCacheRelay(relays).then(async (handle) => {
       if (generation !== this.#generation) {
@@ -64,6 +77,9 @@ class CacheRelayStore {
 
   /**
    * Release this app's acquisition and go back to `idle`.
+   *
+   * {@link upstreamRelays} keeps the old set until the next {@link start}
+   * replaces it — nothing reads it while the status is `idle`.
    *
    * Used when the relay set changes (login, logout): the running relay keeps
    * the upstreams it was started with, so reading from the new ones means
