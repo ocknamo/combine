@@ -8,12 +8,11 @@
  *
  * Two differences from the Nostr Web Components elements elsewhere in the app
  * are worth knowing before touching this: it acquires the page's cache relay
- * itself, so it takes the *upstream* relays rather than the intercept URL; and
- * it re-subscribes when its attributes change, so it needs no {#key} to notice
- * a new post or a new relay set. It waits on `cacheRelay.resolved` all the
- * same — not for the URL, but because the upstream relays are only settled
- * once the relay has been started with them, and re-subscribing throws away
- * what is on screen (see `cacheRelay.svelte.ts`).
+ * itself, so it takes the *upstream* relays rather than the intercept URL — it
+ * waits on `cacheRelay.resolved` all the same, since those relays are only
+ * settled once the relay has been started with them (see
+ * `cacheRelay.svelte.ts`); and it re-subscribes when its attributes change, so
+ * it needs no {#key} to notice a new post or a new relay set.
  *
  * `db-name` and `profile-freshness` have to agree with every other holder of
  * that relay — the first acquisition configures it and a mismatch is only a

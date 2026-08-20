@@ -6,15 +6,11 @@ import { DEFAULT_RELAYS, pickViewRelays } from './relays';
  * as a result.
  *
  * `idle` is not "no cache" — it is "we do not know yet". Views wait for it to
- * resolve before mounting a Nostr element, for two reasons:
- *
- *  - `nostr-list@0.3.0` does not react to a changed `relays` prop, so an
- *    element mounted against the upstream relays would stay on them for its
- *    whole life, even after the relay came up a moment later.
- *  - the nostr-cache widgets do react, and restart when they see one — see
- *    {@link CacheRelayStore.upstreamRelays}. Waiting also makes the app's own
- *    acquisition the page's first, so its `dbName` and `profileFreshness`
- *    configure the relay and a widget mounting later can only agree with it.
+ * resolve before mounting a Nostr element: `nostr-list@0.3.0` never adopts a
+ * changed `relays` prop, and the nostr-cache widgets adopt one by restarting
+ * (see {@link CacheRelayStore.upstreamRelays}). Waiting also makes the app's
+ * acquisition the page's first, so it is `dbName` and `profileFreshness` here
+ * that configure the relay.
  */
 type Status = 'idle' | 'ready' | 'unavailable';
 
@@ -24,20 +20,12 @@ class CacheRelayStore {
   interceptUrl = $state<string | null>(null);
 
   /**
-   * Upstream relays the relay is running with: the set handed to the current
-   * {@link start}, not whatever `auth.relays` holds right now.
+   * Upstream relays the running relay was started with.
    *
-   * Views pass this to the nostr-cache widgets instead of reading `auth`
-   * directly. A widget re-subscribes whenever its `relays` attribute changes,
-   * and doing so releases and re-acquires the page relay — so a widget reading
-   * `auth.relays` live restarts a few seconds into every session, when the
-   * user's relays arrive from the signing iframe and replace the defaults, and
-   * the events already on screen are thrown away. This moves only when the
-   * relay is restarted for a new set anyway, so a view that waits for
-   * {@link resolved} sees exactly one value per relay set.
-   *
-   * Starts at {@link DEFAULT_RELAYS} — where `auth.relays` starts too — and is
-   * only read while the relay is up, so it is never the empty list.
+   * Views read this rather than `auth.relays`, which is replaced seconds into
+   * the session once the signing iframe answers: a nostr-cache widget restarts
+   * on a changed `relays` attribute and loses the events on screen. This moves
+   * only when the relay is rebuilt for the new set anyway.
    */
   upstreamRelays = $state<string[]>(DEFAULT_RELAYS);
 
@@ -69,8 +57,8 @@ class CacheRelayStore {
    */
   start(relays: string[]): Promise<void> {
     if (this.#starting) return this.#starting;
-    // Before the first await, so the relays a view reads are already the new
-    // ones by the time `status` says the relay is up.
+    // Before the first await, so `resolved` never turns true next to the relays
+    // of the previous run.
     this.upstreamRelays = relays;
     const generation = this.#generation;
     this.#starting = startCacheRelay(relays).then(async (handle) => {
@@ -90,10 +78,8 @@ class CacheRelayStore {
   /**
    * Release this app's acquisition and go back to `idle`.
    *
-   * {@link upstreamRelays} deliberately keeps the old set until the next
-   * {@link start} replaces it: nothing renders a Nostr element while the status
-   * is `idle`, and emptying it would only give a stray reader a relay list that
-   * cannot reach anything.
+   * {@link upstreamRelays} keeps the old set until the next {@link start}
+   * replaces it — nothing reads it while the status is `idle`.
    *
    * Used when the relay set changes (login, logout): the running relay keeps
    * the upstreams it was started with, so reading from the new ones means

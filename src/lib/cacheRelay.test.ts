@@ -16,8 +16,7 @@ vi.mock('./nostrCache', () => ({
   startCacheRelay: (relays: string[]) => startCacheRelay(relays),
 }));
 
-// One store for the whole file: it is the app's singleton. Each test puts it
-// back to `idle` so the next one starts from a relay that is not running.
+// The store is the app's singleton, so each test puts it back to `idle` first.
 beforeEach(async () => {
   await cacheRelay.stop();
   startCacheRelay.mockClear();
@@ -33,8 +32,8 @@ describe('cacheRelay', () => {
 
   it('publishes the upstream relays before the relay is up', () => {
     const started = cacheRelay.start(relays);
-    // Synchronously, so a view that waits for `resolved` never sees the new
-    // status next to the old relays — that pairing would restart every widget.
+    // Synchronously: a view that waits for `resolved` must never see the new
+    // status next to the old relays, which would restart every widget.
     expect(cacheRelay.upstreamRelays).toEqual(relays);
     expect(cacheRelay.resolved).toBe(false);
     return started;
@@ -60,8 +59,6 @@ describe('cacheRelay', () => {
     await cacheRelay.stop();
     expect(release).toHaveBeenCalledTimes(1);
     expect(cacheRelay.resolved).toBe(false);
-    // Nothing renders while idle, and an empty list would only give a stray
-    // reader a relay set that reaches nothing.
     expect(cacheRelay.upstreamRelays).toEqual(relays);
 
     const next = ['wss://c.example'];

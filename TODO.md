@@ -58,11 +58,8 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
   - 全ビュー（Home / Profile / Search / Notifications / Header）と `fetchFollows` が
     ユーザーのリレーを参照するようになった。ただしビューが直接読むのは
     `auth.relays` ではなく `cacheRelay`（`upstreamRelays` / `viewRelays`）。
-    `auth.relays` は起動直後に既定値からユーザーのリレーへ差し替わるため、これを
-    そのままウィジェットの `relays` に渡すと属性変更を見た nostr-cache
-    ウィジェットが再購読し、読み込み済みの投稿が消えてしまう。
-    `cacheRelay` はブラウザ内リレーを起動したときのリレー集合を保持するので、
-    値が動くのはリレー自体を作り直すとき（ログイン・ログアウト・アカウント切替）だけ。
+    `auth.relays` は起動直後に差し替わるため、そのままウィジェットに渡すと
+    再購読で表示が消える（詳細は `CLAUDE.md`）。
   - 残課題（write リレー）: 投稿（publish）は combine 自身ではなく **埋め込みの eHagaki に委譲**
     しており（combine は pubkey 提供と `signEvent` のみ、publish と publish 先リレーは eHagaki 側）、
     `ehagaki.embed` プロトコルに combine → eHagaki へリレーを渡す手段が無い。
