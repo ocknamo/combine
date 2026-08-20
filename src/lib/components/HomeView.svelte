@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { auth } from '../auth.svelte';
+import { cacheRelay } from '../cacheRelay.svelte';
 import {
   loadNostrTimeline,
   NOSTR_CACHE_DB_NAME,
@@ -64,7 +65,15 @@ onMount(() => {
 });
 
 // The widget parses a comma-separated string, unlike nostr-web-components.
-const relays = $derived(relaysAttr(auth.relays));
+//
+// Read from `cacheRelay`, not from `auth` — the two hold the same relays, but
+// only one of them holds still. `auth.relays` starts at the defaults and is
+// replaced with the user's read relays a moment after startup; a widget sees
+// that as a new `relays` attribute and restarts, throwing away the events it
+// had just loaded. `cacheRelay.upstreamRelays` is the set the running relay was
+// started with, so it changes only together with the relay itself — and the
+// widgets below wait for that relay before mounting.
+const relays = $derived(relaysAttr(cacheRelay.upstreamRelays));
 </script>
 
 <!-- One listener covers both feeds: the action event bubbles and is composed. -->
@@ -112,7 +121,14 @@ const relays = $derived(relaysAttr(auth.relays));
       </a>
       に接続できない可能性があります。
     </p>
-  {:else if !ready}
+  {:else if !ready || !cacheRelay.resolved}
+    <!--
+      Waiting for the relay is waiting for the relay set to settle: `App.svelte`
+      starts it only once the user's relays are in, and mounting a widget before
+      that means mounting it against relays that are about to be replaced — a
+      restart of both widgets, and of the page relay itself while the app is not
+      yet holding it (IndexedDB and the upstream connections go down with it).
+    -->
     <p class="empty">読み込み中…</p>
   {:else}
     <!-- Dropped on logout: the element has no feed to show without a pubkey. -->

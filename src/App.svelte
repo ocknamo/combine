@@ -16,6 +16,12 @@ import { toast } from './lib/toast.svelte';
 
 const route = $derived(router.current);
 
+// The relay set the cache relay is running on, as a joined string so a refresh
+// that returns the same relays is not read as a change. `null` until startup
+// has started the relay — see both blocks below. A plain variable, not state:
+// it is bookkeeping between these two, and nothing renders from it.
+let relayKeyInUse: string | null = null;
+
 // A session restored from localStorage never runs login(), so pull the user's
 // relays here too.
 //
@@ -27,20 +33,25 @@ const route = $derived(router.current);
 onMount(() => {
   void (async () => {
     if (auth.loggedIn) await auth.refreshRelays();
-    await cacheRelay.start(auth.relays);
+    const relays = auth.relays;
+    relayKeyInUse = relays.join(',');
+    await cacheRelay.start(relays);
   })();
 });
 
 // An explicit login or logout replaces the relay set, which the running relay
-// cannot adopt (its upstreams were fixed when it started). Restart it. Keyed on
-// the joined list rather than the array so a refresh that returns the same
-// relays is not treated as a change.
-let lastRelayKey = auth.relays.join(',');
+// cannot adopt (its upstreams were fixed when it started). Restart it.
+//
+// While `relayKeyInUse` is null the relays arriving from the signing iframe are
+// not a change to act on: startup above has not started the relay yet and will
+// start it on whatever is current by then. Restarting here instead would race
+// it — a stop() landing on an acquisition still in flight releases it, and the
+// relay the app has only just brought up goes down and comes back for nothing.
 $effect(() => {
-  const relayKey = auth.relays.join(',');
-  if (relayKey === lastRelayKey) return;
-  lastRelayKey = relayKey;
   const relays = auth.relays;
+  const relayKey = relays.join(',');
+  if (relayKeyInUse === null || relayKey === relayKeyInUse) return;
+  relayKeyInUse = relayKey;
   // Restarting only writes to the cacheRelay store, which this effect does not
   // read, so it cannot re-trigger itself.
   void cacheRelay.stop().then(() => cacheRelay.start(relays));

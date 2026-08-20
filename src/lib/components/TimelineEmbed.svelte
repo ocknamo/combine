@@ -7,9 +7,13 @@
  *
  * `db-name` and `profile-freshness` have to agree with every other holder of
  * that relay — the first acquisition configures it and a mismatch is only a
- * console warning. The element acquires it itself, so nothing here waits on
- * `cacheRelay`, and it re-subscribes on a changed `filters` or `relays`, so no
- * view needs a {#key} around it.
+ * console warning. The element acquires it itself, so it takes the *upstream*
+ * relays rather than the intercept URL, and it re-subscribes on a changed
+ * `filters` or `relays`, so no view needs a {#key} around it.
+ *
+ * It still waits for `cacheRelay`, for the relays rather than the URL: they are
+ * only settled once the relay has been started with them, and re-subscribing
+ * costs the events on screen — see `cacheRelay.svelte.ts`.
  *
  * `actions` is the same story: it puts the 詳細 button under every row, which is
  * how notifications, a profile's posts and hashtag results reach the detail
@@ -18,7 +22,7 @@
  * `nostr-timeline:action`, which `navigateOnAction` turns into navigation.
  */
 import { onMount } from 'svelte';
-import { auth } from '../auth.svelte';
+import { cacheRelay } from '../cacheRelay.svelte';
 import {
   filtersAttr,
   loadNostrTimeline,
@@ -48,7 +52,7 @@ onMount(() => {
   );
 });
 
-const relays = $derived(relaysAttr(auth.relays));
+const relays = $derived(relaysAttr(cacheRelay.upstreamRelays));
 const filtersJson = $derived(filtersAttr(filters));
 </script>
 
@@ -60,7 +64,7 @@ const filtersJson = $derived(filtersAttr(filters));
     </a>
     に接続できない可能性があります。
   </p>
-{:else if !ready}
+{:else if !ready || !cacheRelay.resolved}
   <p class="empty">読み込み中…</p>
 {:else}
   <nostr-timeline
