@@ -74,28 +74,102 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
 導線そのものは対応済み（投稿カードのアイコン・表示名から開く。nostr-cache 側は
 [ocknamo/nostr-cache#77](https://github.com/ocknamo/nostr-cache/issues/77) /
 [#78](https://github.com/ocknamo/nostr-cache/pull/78) で `author-action` 属性が入った）。
-残っているのは下記。
+画面の中身は `ProfileView.svelte` を `own=false` で使い回していて、いま出ているのは
+**プロフィールカード（`nostr-profile display="card"`）・npub のコピー・kind 1 の投稿 30 件**だけ。
+足りないものを洗い出した結果を、実現コストの低い順に並べる。
 
-- [ ] **導線を残りの箇所へ広げる**（nostr-cache 側の対応が先）
+### すぐ入れられる（いまある仕組みだけで完結する）
+
+- [ ] **自分自身のページを開いたときの分岐が無い**
+  - `#/user/<自分の npub>` は他人のページとして描かれる。鍵の管理とログアウトが出ないのは
+    意図どおりだが、「これは自分だ」という手掛かりも無い。自分の投稿カードのアイコンを
+    押せば普通に踏む経路なので、`App.svelte` で `route.param` の hex が `auth.pubkey` と
+    一致したら `own` を渡す（あるいは `#/profile` へ寄せる）だけで済む。
+  - scrollMemory のキーが `profile` と `user/<npub>` に割れる重複も同時に消える。
+
+- [ ] **共有の導線が npub のコピーしか無い**
+  - ページ URL（`location.origin` + `#/user/npub…`）のコピー、`navigator.share`、
+    `nostr:npub…` や njump で他クライアントへ渡す、のいずれも無い。人を紹介するための
+    画面なのに、リンクを渡すには URL バーから手で拾う必要がある。publish は要らない。
+
+- [ ] **「この人にメンションして投稿」**
+  - `composer.setContext` の `content` に `nostr:npub…` を渡せば実現できる
+    （ブリッジは対応済み・UI から未使用）。ユーザー詳細画面はその入口として自然。
+  - 足りないのは **compose へ文字列を持ち込む経路**。`parseRoute` は `compose` に param を
+    取らないので、小さな共有ストア（例: `composeContext.svelte.ts`）を挟み、`ComposeView` が
+    bridge の ready 後に流す形が素直（`ComposeView` は常時マウントで、bridge が立つ前に
+    `setContext` を呼んでも届かない）。
+
+- [ ] **投稿一覧が kind 1・30 件のまま**
+  - リポスト（kind 6）も長文（kind 30023）も出ない。件数もホーム（50）と揃っていない。
+  - 「投稿だけ／返信も含む」の切り替えは **NIP-01 のフィルタでは書けない**
+    （「e タグが無いもの」を指定する手段が無い）。ウィジェット側の対応が要る。
+  - 続きを読む手段も無い。配布中の `nostr-timeline.js` には load-more 相当の入口が無く、
+    `max-events` は保持上限であってページングではない。これも上流待ち。
+    当面できるのは `kinds` を `[1, 6]` にする・limit をホームと揃える程度。
+
+### 土台が要る（イベントを自前で読む経路が無い）
+
+- [ ] **kind 0 / kind 3 を自前で取得する薄いクライアント**
+  - いま combine はイベントの取得をすべてウィジェットに任せていて、自前の取得経路が無い。
+    `nostr-profile` は Shadow DOM なので描画結果も読めない。この一点が原因で下記が全部できない。
+    - BackBar が「ユーザー」固定で相手の名前が出ない。`document.title` も変わらないので、
+      共有リンクから開いたときに誰のページか分からない
+    - フォロー数・フォロワー数、「フォロー中」バッジ（自分の kind 3 に相手が居るか）
+    - lud16（Zap 用のライトニングアドレス）・website・NIP-05 の再利用
+  - 実現は重くない。`cacheRelay.interceptUrl` へ生の WebSocket を張って REQ を投げるだけで、
+    ブラウザ内リレーは `globalThis.WebSocket` の差し替えなので自前の接続もそのままキャッシュに載る。
+    依存追加も不要（nostr-tools は未導入で、rx-nostr も直接の依存ではない）。
+
+- [ ] **フォロー一覧 / フォロワー一覧**
+  - フォローは相手の kind 3 の p タグを `nostr-profile` で並べるだけ。読むだけなので publish 不要。
+  - フォロワーは `{ kinds: [3], '#p': [hex] }` の逆引きになり、リレーの対応と件数次第。
+    まずフォロー側だけでも価値がある。
+
+- [ ] **NIP-05 を `#/user/…` で解決する（検索結果との重複解消）**
+  - `SearchView` は npub / nprofile / NIP-05 の結果をその場でプロフィールカード＋投稿一覧として
+    描いていて、ユーザー詳細画面と中身が同じ。カードを `#/user/…` への入口にして一覧はそちらに
+    任せたいが、**NIP-05 は `toHexPubkey` が解決できず**「ユーザーが見つかりませんでした」になる。
+  - ユーザー詳細画面側が `/.well-known/nostr.json` を引いて hex に解決できれば、
+    「hex に解決できたときだけリンクにする」ような分岐を足さずに一本化できる。
+  - `nostr-profile` は `href="#/user/{id}" target="_self"` でカード自体をリンクにできる
+    （`{id}` は `user` 属性の値がそのまま入る。`target` の既定が `_blank` なので明示が要る）。
+
+### publish 経路が要る（ここが本丸）
+
+- [ ] **署名済みイベントをリレーへ publish する処理**
+  - **署名は `auth.signEvent` で既にできる**。足りないのはリレーへ送る部分だけで、
+    `["EVENT", ev]` を投げて `["OK", id, true]` を待つ生 WebSocket でも書ける。
+    ライブラリ選定（rx-nostr / nostr-tools）を待つ必要は無い。
+  - 送り先は `getRelays()` の **write リレー**。publish を eHagaki に委譲している限り使い道が
+    無かったが、自前 publish ならここで初めて使える（eHagaki 側の拡張提案を待たずに済む）。
+
+- [ ] **フォロー / フォロー解除**
+  - 上記の publish ＋ kind 3。難所は UI ではなく **kind 3 が全置換**であること。
+    取りこぼした状態で publish すると相手のフォローを消す事故になるので、複数リレーから集めて
+    `created_at` が最大のものをベースにする・1 件も取れなければ publish しない、という
+    ガードが要る。
+
+- [ ] **相手の投稿へのリアクション / リポスト / 返信**
+  - この画面固有ではないが、開いた先で相手の投稿に対して何もできない。ボタンの土台
+    （`actions` / `nostr-timeline:action`）は既にあるので、残るのは publish だけ
+    （「Nostr Web Components」節と同じ）。
+
+- [ ] **ミュート / ブロック（kind 10000）**
+  - publish は同じでも **表示側に効かない**。一覧を描くのはウィジェットで、NIP-01 のフィルタに
+    「この author を除く」は書けない。リストには入れられるが画面には反映されない、という
+    中途半端な状態にしかならないので、上流対応が入るまでは優先度が低い。
+
+- [ ] **Zap**
+  - kind 0 の lud16 → LNURL-pay → invoice → ウォレット（WebLN / QR）と道のりが長い。
+    zap request（kind 9734）の署名自体は `signEvent` で足りる。まずは
+    「ライトニングアドレスを表示してコピー」までで十分かもしれない。
+
+### 上流（nostr-cache）待ち
+
+- [ ] **導線を残りの箇所へ広げる**
   - 押せるようになったのは投稿カードの著者だけ。**引用カードのヘッダ・リアクター一覧の各行・
     本文中の `nostr:` メンション**は据え置きで、上流が別 issue に切り出す想定。
     特にメンションは現在「行き先が無いので意図的にリンクにしていない」ものなので効果が大きい。
   - combine 側は `pubkey` を読んで飛ぶだけなので、上流が同じ `nostr-timeline:action` に
     載せてくれれば**追加の実装は要らない**（`actionPath` がそのまま裁く）。
-
-- [ ] **検索結果とユーザー詳細画面の重複を解消する**
-  - `SearchView` は npub / nprofile / NIP-05 の検索結果を、その場でプロフィールカード＋
-    投稿一覧として描いている。ユーザー詳細画面と中身が同じなので、カードを
-    `#/user/…` への入口にして一覧はそちらに任せる案。
-  - `nostr-profile` は `href="#/user/{id}" target="_self"` でカード自体をリンクにできる
-    （`{id}` は `user` 属性の値がそのまま入る。`target` の既定が `_blank` なので明示が要る）。
-  - ただし **NIP-05 で検索した場合は `user` がメールアドレス形式**で、そのまま URL に載せると
-    `toHexPubkey` が解決できず「ユーザーが見つかりませんでした」になる。hex に解決できた
-    ときだけリンクにする等の分岐が要る。
-
-- [ ] **フォロー / フォロー解除**
-  - kind 3 の publish が必要。publish 経路が無いのは上記「Nostr Web Components」節と同じ未解決事項。
-
-- [ ] **「この人にメンションして投稿」**
-  - `composer.setContext` の `content` に `nostr:npub…` を渡せば実現できる
-    （ブリッジは対応済み・UI から未使用）。ユーザー詳細画面はその入口として自然。
