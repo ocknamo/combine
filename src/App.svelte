@@ -101,7 +101,7 @@ $effect(() => {
     {:else if route.name === 'notifications'}
       <NotificationsView />
     {:else if route.name === 'profile'}
-      <ProfileView user={auth.pubkey} own />
+      <ProfileView user={auth.pubkey} tab />
     {:else if route.name === 'user'}
       <ProfileView user={route.param} />
     {:else if route.name === 'post'}
