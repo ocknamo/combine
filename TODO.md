@@ -129,6 +129,8 @@
     自動ログインのまま乗り換えられる。ドキュメントに「Web Component 版専用の signer
     callback/provider API はありません」と明記されているので、これは機能要望として出す話。
     それが入るまでは iframe 版のままで困らない。
+  - 載せるときの宿題: combine のログアウト・アカウント切替は eHagaki 側の storage に伝わらないので、
+    要素の作り直しと namespace の掃除が要る（上の認証の項）。
   - なお `composer.focus` 相当は Web Component 版にも無い（上の自動フォーカスの項目は解決しない）。
 
 ## Nostr Web Components（表示）のカスタマイズ
