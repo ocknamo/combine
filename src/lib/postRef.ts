@@ -69,6 +69,20 @@ export const POST_ACTIONS_ATTR = JSON.stringify([POST_DETAIL_ACTION]);
  */
 export const AUTHOR_ACTION_ID = 'open-profile';
 
+/**
+ * The `note-action` attribute value: what a tap on a quoted post's card inside
+ * another post reports itself as.
+ *
+ * Same shape of opt-in as `author-action` — nostr-cache reserves no id, so this
+ * only has to differ from `AUTHOR_ACTION_ID` and from every id in
+ * `POST_ACTIONS_ATTR`. The accessible name is left at the element's default
+ * (「投稿を開く」), which is exactly what pressing one does.
+ *
+ * The press arrives with the *quoted* event in `event` and no `pubkey` key, so
+ * `actionPath` resolves it the same way it resolves the 詳細 button.
+ */
+export const NOTE_ACTION_ID = 'open-note';
+
 /** The event all three nostr-cache elements dispatch when an action is used. */
 export const POST_ACTION_EVENT = 'nostr-timeline:action';
 
@@ -115,7 +129,11 @@ export function actionPath(detail: unknown): string | null {
     return npub ? userPath(npub) : null;
   }
 
-  if (record['actionId'] !== POST_DETAIL_ACTION.id) return null;
+  // The 詳細 button and a tap on a quoted card differ only in which event they
+  // carry — the button the post's own, the quote the post it embeds — so both
+  // land in the same resolution below and reach `#/post/…` the same way.
+  const actionId = record['actionId'];
+  if (actionId !== POST_DETAIL_ACTION.id && actionId !== NOTE_ACTION_ID) return null;
 
   const event = record['event'];
   if (typeof event !== 'object' || event === null) return null;

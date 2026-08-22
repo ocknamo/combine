@@ -11,7 +11,7 @@ import {
   relaysAttr,
 } from '../nostrCache';
 import { navigateOnAction } from '../postAction';
-import { AUTHOR_ACTION_ID, MATERIAL_ICONS, POST_ACTIONS_ATTR } from '../postRef';
+import { AUTHOR_ACTION_ID, MATERIAL_ICONS, NOTE_ACTION_ID, POST_ACTIONS_ATTR } from '../postRef';
 import { type SwipeDirection, swipeHorizontal } from '../swipe';
 
 type Feed = 'follows' | 'global';
@@ -151,6 +151,7 @@ function onSwipe(direction: SwipeDirection): void {
           limit="50"
           actions={POST_ACTIONS_ATTR}
           author-action={AUTHOR_ACTION_ID}
+          note-action={NOTE_ACTION_ID}
           material-icons={MATERIAL_ICONS}
           db-name={NOSTR_CACHE_DB_NAME}
           profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
@@ -165,6 +166,7 @@ function onSwipe(direction: SwipeDirection): void {
           {relays}
           actions={POST_ACTIONS_ATTR}
           author-action={AUTHOR_ACTION_ID}
+          note-action={NOTE_ACTION_ID}
           material-icons={MATERIAL_ICONS}
           db-name={NOSTR_CACHE_DB_NAME}
           profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}

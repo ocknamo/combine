@@ -44,6 +44,15 @@ type NostrCacheAttributes = HTMLAttributes<HTMLElement> & {
   'author-action'?: string;
   /** Accessible name for the above. Defaults to 「プロフィールを開く」. */
   'author-action-label'?: string;
+  /**
+   * Makes the card of a quoted post — the one rendered inside another post's
+   * body by `show-embeds` — pressable, reporting the id given here. Its taps
+   * arrive as the same `nostr-timeline:action`, carrying the *quoted* event in
+   * `event` and no `pubkey`.
+   */
+  'note-action'?: string;
+  /** Accessible name for the above. Defaults to 「投稿を開く」. */
+  'note-action-label'?: string;
   'material-icons'?: string | boolean;
   'material-icons-font'?: string;
 };
