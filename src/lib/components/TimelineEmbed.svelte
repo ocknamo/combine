@@ -32,7 +32,7 @@ import {
   relaysAttr,
 } from '../nostrCache';
 import { navigateOnAction } from '../postAction';
-import { AUTHOR_ACTION_ID, MATERIAL_ICONS, POST_ACTIONS_ATTR } from '../postRef';
+import { AUTHOR_ACTION_ID, MATERIAL_ICONS, NOTE_ACTION_ID, POST_ACTIONS_ATTR } from '../postRef';
 
 let { filters }: { filters: NostrFilter[] } = $props();
 
@@ -71,6 +71,7 @@ const filtersJson = $derived(filtersAttr(filters));
     {relays}
     actions={POST_ACTIONS_ATTR}
     author-action={AUTHOR_ACTION_ID}
+    note-action={NOTE_ACTION_ID}
     material-icons={MATERIAL_ICONS}
     db-name={NOSTR_CACHE_DB_NAME}
     profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}

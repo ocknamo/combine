@@ -3,6 +3,7 @@ import { toHexPubkey, toNpub } from './nip19';
 import {
   AUTHOR_ACTION_ID,
   actionPath,
+  NOTE_ACTION_ID,
   normalizePostRef,
   POST_ACTIONS_ATTR,
   POST_DETAIL_ACTION,
@@ -22,6 +23,15 @@ function action(event: Record<string, unknown>): Record<string, unknown> {
 /** What nostr-cache sends for a tap on a card's avatar or display name. */
 function authorAction(pubkey: unknown, event: Record<string, unknown> = { id: NOTE, kind: 1 }) {
   return { actionId: AUTHOR_ACTION_ID, event, status: 'ok', pubkey };
+}
+
+/**
+ * What nostr-cache sends for a tap on a quoted post's card. `event` is the
+ * quoted post, and there is no `pubkey` — that key stays exclusive to
+ * `authorAction` above.
+ */
+function noteAction(event: Record<string, unknown>): Record<string, unknown> {
+  return { actionId: NOTE_ACTION_ID, event, status: 'ok' };
 }
 
 describe('normalizePostRef', () => {
@@ -72,6 +82,14 @@ describe('AUTHOR_ACTION_ID', () => {
   it('does not collide with an action button', () => {
     const items = JSON.parse(POST_ACTIONS_ATTR) as Array<Record<string, unknown>>;
     expect(items.map((item) => item['id'])).not.toContain(AUTHOR_ACTION_ID);
+  });
+});
+
+describe('NOTE_ACTION_ID', () => {
+  it('does not collide with an action button or the author press', () => {
+    const items = JSON.parse(POST_ACTIONS_ATTR) as Array<Record<string, unknown>>;
+    expect(items.map((item) => item['id'])).not.toContain(NOTE_ACTION_ID);
+    expect(NOTE_ACTION_ID).not.toBe(AUTHOR_ACTION_ID);
   });
 });
 
@@ -132,6 +150,22 @@ describe('actionPath', () => {
   it('falls back to the event itself when there is no e tag', () => {
     expect(actionPath(action({ id: HEX, kind: 7, tags: [['p', OTHER_HEX]] }))).toBe(postPath(HEX));
     expect(actionPath(action({ id: HEX, kind: 7 }))).toBe(postPath(HEX));
+  });
+
+  it('opens the quoted post for a tap on its card', () => {
+    expect(actionPath(noteAction({ id: HEX, kind: 1 }))).toBe(postPath(HEX));
+    expect(actionPath(noteAction({ id: NOTE, kind: 30023 }))).toBe(postPath(NOTE));
+  });
+
+  it('resolves a quoted post the same way the 詳細 button does', () => {
+    const event = { id: HEX, kind: 6, tags: [['e', OTHER_HEX]] };
+    expect(actionPath(noteAction(event))).toBe(actionPath(action(event)));
+    expect(actionPath(noteAction(event))).toBe(postPath(OTHER_HEX));
+  });
+
+  it('ignores a quote press that carries no usable event', () => {
+    expect(actionPath({ actionId: NOTE_ACTION_ID })).toBeNull();
+    expect(actionPath(noteAction({ kind: 1 }))).toBeNull();
   });
 
   it('ignores another action', () => {
