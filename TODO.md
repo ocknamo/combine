@@ -21,6 +21,110 @@
     含める形になる（eHagaki 側のパース実装に依存）。
   - → 「本文やメンションを差し込んで投稿画面を開く」入口（UI or URL クエリ等）を足せば実現可。
 
+- [ ] **Web Component 版（`<ehagaki-composer>`）への移行を検討する**
+  （2026-08-22 に上流ドキュメントと実装を読んだ結果。`docs/WEB_COMPONENT.md` /
+  `src/lib/nip07AuthService.ts` / `src/web-component/` を確認）
+
+  eHagaki が iframe 版とは別に Web Component 版を出した。同じ Window realm で動く
+  カスタム要素で、`postMessage` も parent-client の `auth.*` / `rpc.*` も**使わない**。
+  つまり `src/lib/ehagaki.ts` のブリッジは丸ごと不要になる代わりに、**認証の受け渡し方を
+  作り直す必要がある**。ここが移行するかどうかの分かれ目。
+
+  ### 上流が提供しているもの
+
+  - 配布: `https://lokuyow.github.io/ehagaki/web-component/ehagaki-composer.js` を
+    `type="module"` で読み、要素に `asset-base` を同じディレクトリで渡す。
+    GitHub Pages が `access-control-allow-origin: *` を返すのでクロスオリジン埋め込みは可能
+    （2026-08-22 時点で確認）。エントリ自体は 97KB（gzip 29KB）で、本体は動的 import。
+  - メソッド: `whenReady()` / `setSettings()` / `setContext()` / `setCustomEmojis()` /
+    `configureHostOwned()`。`setContext` は `content` / `reply` / `quotes` / `channel` に加えて
+    `preloadedEvents`（親が持っている署名済みイベントを渡して reply・quote のプレビューを即出す）。
+  - イベント: `ehagaki-ready` / `ehagaki-post-success` / `ehagaki-post-error` /
+    `ehagaki-composer-context-updated` / `ehagaki-initialization-error`（すべて
+    `bubbles: true, composed: true`）。
+  - スタイル: `--ehagaki-accent-color` / `--ehagaki-base-color` の 2 色指定と、
+    `--ehagaki-background` などの個別 token override。
+  - 制約: 1 document につき 1 インスタンス。open ShadowRoot。高さは host が definite な
+    CSS height を持つ必要がある（`auto` は非対応）。
+
+  ### combine にとっての利点
+
+  - **テーマが揃う**。iframe には combine の CSS 変数が届かないので、いまエディタだけ
+    見た目が浮いている。Web Component なら金・オリーブのパレットに寄せられる。
+  - **storage がホスト側に乗る**。ブリッジは `storage.*` / `idb.*` の委譲を実装していないため、
+    現状の下書き・設定は eHagaki 側の partitioned storage 頼み（第三者 storage の分離が効く
+    ブラウザでは残りにくい）。Web Component は combine のオリジンに
+    `ehagaki.web-component.v1:` namespace と IndexedDB `eHagakiDB` で保存する
+    （combine のキャッシュ DB は `combine-timeline` なので衝突しない）。
+  - **ブリッジ（211 行）とそのテストが消える**。`composer.setContext` は要素のメソッド直呼びになり、
+    上の「本文・メンションのプリフィル」も `setContext({ content })` をそのまま呼ぶだけになる。
+  - `preloadedEvents` があるので、combine が既に持っているイベントを渡して返信・引用の
+    プレビューをリレー往復なしで出せる。
+
+  ### コストとリスク
+
+  - **自動ログインが消える**（いちばん大きい）。Web Component は NIP-07 として
+    **ホストの `window.nostr` を直接使う**。combine は Nosskey の iframe を直接叩いていて
+    `window.nostr` を生やしていないので、まずシムを足す必要がある。eHagaki が実際に呼ぶのは
+    `getPublicKey` と `signEvent` の 2 つだけ（`getRelays` は使わず、write リレーは kind 10002 を
+    自前で取りに行く）。ただしシムを足しても、**初回は composer 内の UI でログインを 1 タップ**
+    しないと繋がらない。いまの `auth.login` を投げるだけで勝手に繋がる parent-client 連携に
+    比べると UX は明確に後退する。
+    - `getPublicKey` はキャッシュ済みの `auth.pubkey` を返す実装にすること。eHagaki は
+      セッション復元時に `authenticate()` を呼ぶので、Nosskey の iframe へ往復させると
+      起動のたびにパスキー確認が出かねない。
+    - アカウント切替・ログアウトの同期も自前。`reconcileSession` が拾った切替を eHagaki 側へ
+      伝える公開 API は無く、要素の作り直しと namespace の掃除しか手が無い。
+    - `window.nostr` を生やすと、同じページに載っている外部ウィジェット（nostr-cache /
+      Nostr Web Components）からも署名を要求できるようになる。鍵は Nosskey の iframe の中で、
+      署名のたびに同意ダイアログが出るので鍵漏洩ではないが、信頼境界は確実に緩む。
+  - **信頼境界**。lokuyow.github.io の JS が combine の realm で動く（DOM・storage・シムに
+    フルアクセス）。上流ドキュメントも「ホスト JS から秘密情報を隔離したいなら iframe を使え」と
+    明記している。combine は鍵を持たない（Nosskey iframe のまま）ので README の
+    「秘密鍵はこのアプリに渡りません」は維持できるが、説明の書き足しは要る。
+  - **重さ**。いまは Tiptap や mediabunny のコストが別ドキュメント側にある。Web Component では
+    combine の document とメインスレッドに乗る。`ComposeView` は常時マウントなので、
+    移行するなら compose ルートに入ってから `createElement` する遅延生成に変えること。
+  - **データは移行されない**。iframe 時代の下書き・設定は引き継がれない。
+  - **クロスオリジンの実機確認が要る**。モジュールとチャンクは CORS 済みだが、動画圧縮が
+    遅延ロードする worker / WASM がクロスオリジンで動くかは実機（特に iOS Safari）で見るしかない。
+    combine は CSP を設定していないので `worker-src` 側の問題は無い。
+  - 影響しない制約: ローカル nsec 非対応（combine は Nosskey なので無関係）、
+    browser-history と share-target の入力処理が無効（未使用）。
+
+  ### host-owned mode（中期の本命）
+
+  `configureHostOwned({ submit, uploadMedia })` を接続前に一度呼ぶと、eHagaki は認証も
+  リレーも target 取得も一切始めない。**ログイン UI 自体が出なくなる**ので、上に書いた
+  自動ログインの後退がそのまま解消する。しかも publish 先を combine が決められるので、
+  「リレー設定」節の write リレー問題と、下の「publish 経路が要る（本丸）」が同じ実装に集約される。
+
+  代わりに combine が持つことになるもの:
+
+  1. イベント組み立て。`submit` に来るのは `{ content, tags, context }` で、`tags` は
+     hashtag / CW / カスタム絵文字 / imeta だけ。`kind` / `pubkey` / `created_at` と
+     `e` / `p` / `q` / `a` / `k`（NIP-10・NIP-18）は combine が作る。
+  2. 署名 → `auth.signEvent` で既にできる。
+  3. write リレーへの publish → 生 WebSocket で `["EVENT", ev]` を投げて `["OK", id, true]` を待つ。
+  4. `uploadMedia` → 省略すると **text-only composer** になり、画像・動画圧縮という eHagaki の
+     看板機能を失う。実装するなら NIP-96 + NIP-98（署名は `auth.signEvent` で足りる）。
+
+  3 と 4 は下の「publish 経路が要る（本丸）」で挙げているものと同じ土台なので、先にそちらを
+  作れば host-owned への移行にそのまま乗る。
+
+  ### 判断
+
+  - **いますぐ全面移行はしない**。自動ログインの喪失が combine の売り（パスキーで入ったら
+    そのまま投稿できる）を直接削るため、テーマ統合と storage の利得だけでは釣り合わない。
+  - 順序としては、(1) 実験ブランチで `window.nostr` シム＋self-publish の Web Component を
+    動かし、モバイルのキーボード挙動・動画圧縮 worker・初回ログイン導線を実機で確認する →
+    (2) 問題なければテーマ統合と storage 目当てで乗り換える価値はある →
+    (3) 本命は host-owned。publish と NIP-96 アップロードを先に作る。
+  - 並行して、上流へ **Web Component 版の signer 提供 API**（例: `configureSigner({ getPublicKey,
+    signEvent })` と自動ログイン）を提案する手もある。ドキュメントに「Web Component 専用の
+    signer callback/provider API はありません」と明記されているので、これは機能要望の話。
+  - なお `composer.focus` 相当は Web Component 版にも無い（上の自動フォーカスの項目は解決しない）。
+
 ## Nostr Web Components（表示）のカスタマイズ
 
 ※ 投稿一覧（ホームタイムライン・通知・プロフィールの投稿・検索結果）はすべて
