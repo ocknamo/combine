@@ -165,8 +165,9 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
 - [ ] **導線を残りの箇所へ広げる**
   - 押せるのは投稿カードの著者（`author-action`）と引用カード本体（`note-action`）まで。
     **引用カードのヘッダにいる著者・リアクター一覧の各行・本文中の `nostr:` メンション**は
-    据え置きで、上流が別 issue に切り出す想定。特にメンションは現在
-    「行き先が無いので意図的にリンクにしていない」ものなので効果が大きい。
+    据え置きで、`author-action` の適用範囲を広げてもらう形で
+    [ocknamo/nostr-cache#86](https://github.com/ocknamo/nostr-cache/issues/86) に提案済み。
+    特にメンションは現在「行き先が無いので意図的にリンクにしていない」ものなので効果が大きい。
   - combine 側は detail の `pubkey` / `event` を読んで飛ぶだけなので、上流が同じ
     `nostr-timeline:action` に載せてくれれば**追加の実装は要らない**
     （`actionPath` がそのまま裁く）。
