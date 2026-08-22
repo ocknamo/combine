@@ -92,37 +92,43 @@
   - 影響しない制約: ローカル nsec 非対応（combine は Nosskey なので無関係）、
     browser-history と share-target の入力処理が無効（未使用）。
 
-  ### host-owned mode（中期の本命）
+  ### host-owned mode（採らない）
 
   `configureHostOwned({ submit, uploadMedia })` を接続前に一度呼ぶと、eHagaki は認証も
-  リレーも target 取得も一切始めない。**ログイン UI 自体が出なくなる**ので、上に書いた
-  自動ログインの後退がそのまま解消する。しかも publish 先を combine が決められるので、
-  「リレー設定」節の write リレー問題と、下の「publish 経路が要る（本丸）」が同じ実装に集約される。
+  リレーも target 取得も始めない。ログイン UI 自体が出なくなるので上の自動ログインの後退は
+  消え、publish 先も combine が決められる（「リレー設定」節の write リレー問題も片付く）。
 
-  代わりに combine が持つことになるもの:
+  ただし代わりに combine が持つことになるものが大きい:
 
   1. イベント組み立て。`submit` に来るのは `{ content, tags, context }` で、`tags` は
      hashtag / CW / カスタム絵文字 / imeta だけ。`kind` / `pubkey` / `created_at` と
      `e` / `p` / `q` / `a` / `k`（NIP-10・NIP-18）は combine が作る。
-  2. 署名 → `auth.signEvent` で既にできる。
+  2. 署名 → `auth.signEvent` で既にできる（ここだけは追加コストが無い）。
   3. write リレーへの publish → 生 WebSocket で `["EVENT", ev]` を投げて `["OK", id, true]` を待つ。
   4. `uploadMedia` → 省略すると **text-only composer** になり、画像・動画圧縮という eHagaki の
-     看板機能を失う。実装するなら NIP-96 + NIP-98（署名は `auth.signEvent` で足りる）。
+     看板機能を失う。実装するなら NIP-96 + NIP-98 を自前で持つ。
 
-  3 と 4 は下の「publish 経路が要る（本丸）」で挙げているものと同じ土台なので、先にそちらを
-  作れば host-owned への移行にそのまま乗る。
+  **実装量の割に得るものが少ないので採らない。** そもそも eHagaki を埋め込む理由は、エディタと
+  メディアの圧縮・アップロードをまるごと借りることにある。4 を自前で持つ時点でその理由が薄れ、
+  得られるのは自動ログインの維持と write リレーの選択権だけになる。前者は上流の signer API で、
+  後者は eHagaki 自身の kind 10002 取得で解ける類の話で、どちらもこの実装量に見合わない。
+
+  なお 3 と 4 は下の「publish 経路が要る（本丸）」と同じ土台なので、そちらを別の理由（リアクション・
+  リポスト・フォロー）で作ったなら、host-owned は後から選べる選択肢として残る。
 
   ### 判断
 
   - **いますぐ全面移行はしない**。自動ログインの喪失が combine の売り（パスキーで入ったら
     そのまま投稿できる）を直接削るため、テーマ統合と storage の利得だけでは釣り合わない。
-  - 順序としては、(1) 実験ブランチで `window.nostr` シム＋self-publish の Web Component を
-    動かし、モバイルのキーボード挙動・動画圧縮 worker・初回ログイン導線を実機で確認する →
-    (2) 問題なければテーマ統合と storage 目当てで乗り換える価値はある →
-    (3) 本命は host-owned。publish と NIP-96 アップロードを先に作る。
-  - 並行して、上流へ **Web Component 版の signer 提供 API**（例: `configureSigner({ getPublicKey,
-    signEvent })` と自動ログイン）を提案する手もある。ドキュメントに「Web Component 専用の
-    signer callback/provider API はありません」と明記されているので、これは機能要望の話。
+  - 順序としては、(1) 実験ブランチで `window.nostr` シム（`src/lib/nip07.ts`。導入済み）＋
+    self-publish の Web Component を動かし、モバイルのキーボード挙動・動画圧縮 worker・
+    初回ログイン導線を実機で確認する → (2) 初回 1 タップを許容できるなら、テーマ統合と
+    storage 目当てで乗り換える価値はある。
+  - **本命は上流への提案**。Web Component 版の signer 提供 API（例: `configureSigner({ getPublicKey,
+    signEvent })` と自動ログイン）が入れば、host-owned のような大掛かりな実装なしに
+    自動ログインのまま乗り換えられる。ドキュメントに「Web Component 版専用の signer
+    callback/provider API はありません」と明記されているので、これは機能要望として出す話。
+    それが入るまでは iframe 版のままで困らない。
   - なお `composer.focus` 相当は Web Component 版にも無い（上の自動フォーカスの項目は解決しない）。
 
 ## Nostr Web Components（表示）のカスタマイズ
