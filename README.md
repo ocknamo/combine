@@ -9,13 +9,15 @@
 | 機能 | サービス | 連携方法 |
 | --- | --- | --- |
 | 署名（パスキー） | [Nosskey](https://nosskey.app) | [nosskey-iframe](https://github.com/ocknamo/nosskey-sdk) による iframe 埋め込み |
-| 投稿エディタ | [eHagaki](https://lokuyow.github.io/ehagaki/) | iframe 埋め込み + `ehagaki.embed` postMessage 連携 |
+| 投稿エディタ | [eHagaki](https://lokuyow.github.io/ehagaki/) | ホスト済み Web Component (`ehagaki-composer`) |
 | 投稿一覧（タイムライン・通知・プロフィール・検索） | [nostr-cache](https://github.com/ocknamo/nostr-cache) | ホスト済み Web Components (`nostr-timeline` / `nostr-follow-timeline`) |
 | 個別投稿表示 | [nostr-cache](https://github.com/ocknamo/nostr-cache) | ホスト済み Web Component (`nostr-post`) |
 | イベント取得のキャッシュ | [nostr-cache](https://github.com/ocknamo/nostr-cache) | ブラウザ内リレーを全ビューの手前に透過キャッシュとして挟む |
 | プロフィール表示 | [Nostr Web Components](https://github.com/TsukemonoGit/nostr-web-components) | Web Components (`nostr-profile`) |
 
-秘密鍵はこのアプリに渡りません。eHagaki からの署名要求（`rpc.request`）は親クライアントが受け取り、Nosskey のパスキー署名へ委譲します。
+秘密鍵はこのアプリに渡りません。署名は nosskey.app の iframe の中だけで起き、そこが独自の同意ダイアログでゲートします。
+eHagaki は combine が `window.nostr` に生やす NIP-07 シム（`src/lib/nip07.ts`）越しに署名を頼みます。
+ただし Web Component なので eHagaki のコードは combine と同じページで動きます（DOM・storage には届きます）。
 
 ## 機能
 
@@ -64,7 +66,12 @@
     鍵の管理とログアウトが出るかは、どの経路で開いたかではなく**誰のページか**で決まる
     （自分のアイコンをタップして開いた `#/user/<自分>` は自分のページなので出る。
     そのときは戻るバーの見出しも「あなた」になる）
-- 投稿・返信・引用（eHagaki 埋め込み）
+- 投稿・返信・引用（eHagaki の Web Component 埋め込み）
+  - 要素は compose タブに初めて入ったときに組み立て、以後は保持する。数 MB のエディタなので
+    アプリ起動時には読み込まない（`src/lib/components/ComposeView.svelte`）
+  - 下書き・設定は combine のオリジンに保存される。ログアウトすると消す
+  - エディタの見た目は combine のパレットに揃う（`--ehagaki-*`）
+  - eHagaki 側のログインは初回だけ 1 タップ必要（詳細は `EHAGAKI_WEB_COMPONENT.md`）
 - 通知（メンション・リポスト・リアクション・Zap）
 - プロフィール表示・自分の投稿一覧・npub コピー
 - プロフィールの共有（`navigator.share`、無い環境ではリンクをクリップボードへ）

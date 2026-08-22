@@ -1,75 +1,69 @@
-# eHagaki Web Component 版（`<ehagaki-composer>`）の検討
+# eHagaki Web Component 版（`<ehagaki-composer>`）への移行
 
-combine の投稿エディタは eHagaki の iframe 埋め込み（`src/lib/ehagaki.ts`）。
-eHagaki が Web Component 版を出したので、乗り換えるかを調べた記録。
+combine の投稿エディタは eHagaki の埋め込み。iframe（`ehagaki.embed` の postMessage ブリッジ）から
+**Web Component 版に移行した**。この文書は移行の判断・実装・残っている宿題の記録。
 
-**結論: いまは乗り換えない。** 上流に「NIP-07 の自動ログイン（opt-in）」が入るのを待つ。
-前提になる `window.nostr` シム（`src/lib/nip07.ts`）だけは先に入れてある。
+調査日 2026-08-22。上流の `docs/WEB_COMPONENT.md` と配布中のバンドル
+（`https://lokuyow.github.io/ehagaki/web-component/`）を読んだ結果。
 
-調査日 2026-08-22。上流の `docs/WEB_COMPONENT.md` / `src/lib/nip07AuthService.ts` /
-`src/lib/authRestoreUtils.ts` / `src/web-component/` を読んだ結果。
+## 判断
 
-## 上流が提供しているもの
+初回のログインに **エディタ内で 1 タップ必要になる**（下記「認証」）。この 1 点だけが後退で、
+それ以外はすべて前進なので、1 タップを許容して移行した。上流に NIP-07 の自動ログインが入れば
+その 1 タップも消える（下記「上流への要望」）。
 
-- 配布: `https://lokuyow.github.io/ehagaki/web-component/ehagaki-composer.js` を
-  `type="module"` で読み、要素に `asset-base` を同じディレクトリで渡す。
-  GitHub Pages が `access-control-allow-origin: *` を返すのでクロスオリジン埋め込みは可能
-  （2026-08-22 時点で確認）。エントリ自体は 97KB（gzip 29KB）で、本体は動的 import。
-- メソッド: `whenReady()` / `setSettings()` / `setContext()` / `setCustomEmojis()` /
-  `configureHostOwned()`。`setContext` は `content` / `reply` / `quotes` / `channel` に加えて
-  `preloadedEvents`（親が持っている署名済みイベントを渡して reply・quote のプレビューを即出す）。
-- イベント: `ehagaki-ready` / `ehagaki-post-success` / `ehagaki-post-error` /
-  `ehagaki-composer-context-updated` / `ehagaki-initialization-error`（すべて
-  `bubbles: true, composed: true`）。
-- スタイル: `--ehagaki-accent-color` / `--ehagaki-base-color` の 2 色指定と、
-  `--ehagaki-background` などの個別 token override。
-- 制約: 1 document につき 1 インスタンス。open ShadowRoot。高さは host が definite な
-  CSS height を持つ必要がある（`auto` は非対応）。
+得たもの:
 
-`postMessage` も parent-client の `auth.*` / `rpc.*` も使わない。つまり `src/lib/ehagaki.ts` の
-ブリッジは丸ごと不要になる代わりに、認証の受け渡し方を作り直すことになる。
+- **テーマが揃う**。iframe には combine の CSS 変数が届かず、エディタだけ見た目が浮いていた。
+  Web Component は `--ehagaki-*` トークンで金・オリーブのパレットに寄せられる
+  （`ComposeView.svelte` の `.composer` に置いてある。カスタムプロパティは継承するので、
+  マークアップに出てこない要素にも届く）。
+- **storage がホスト側に乗る**。ブリッジは `storage.*` / `idb.*` の委譲を実装していなかったため、
+  下書き・設定は eHagaki 側の partitioned storage 頼みで、第三者 storage の分離が効くブラウザでは
+  残らなかった。いまは combine のオリジンに `ehagaki.web-component.v1:` namespace と
+  IndexedDB `eHagakiDB` で保存される（combine のキャッシュ DB は `combine-timeline` なので衝突しない）。
+- **ブリッジ（211 行）とそのテストが消えた**。`composer.setContext` は要素のメソッド直呼びになり、
+  TODO の「本文・メンションのプリフィル」も `setContext({ content })` を呼ぶだけになった。
+- 返信・引用のプレビューを親の持っているイベントで即出せる `preloadedEvents` が使える
+  （combine は自前のイベント取得経路をまだ持たないので未使用）。
 
-## combine にとっての利点
+## 実装
 
-- **テーマが揃う**。iframe には combine の CSS 変数が届かないので、いまエディタだけ
-  見た目が浮いている。Web Component なら金・オリーブのパレットに寄せられる。
-- **storage がホスト側に乗る**。ブリッジは `storage.*` / `idb.*` の委譲を実装していないため、
-  現状の下書き・設定は eHagaki 側の partitioned storage 頼み（第三者 storage の分離が効く
-  ブラウザでは残りにくい）。Web Component は combine のオリジンに
-  `ehagaki.web-component.v1:` namespace と IndexedDB `eHagakiDB` で保存する
-  （combine のキャッシュ DB は `combine-timeline` なので衝突しない）。
-- **ブリッジ（211 行）とそのテストが消える**。`composer.setContext` は要素のメソッド直呼びになり、
-  TODO の「本文・メンションのプリフィル」も `setContext({ content })` を呼ぶだけになる。
-- `preloadedEvents` があるので、combine が既に持っているイベントを渡して返信・引用の
-  プレビューをリレー往復なしで出せる。
+`src/lib/ehagakiComposer.ts`（ローダと型）＋ `src/lib/components/ComposeView.svelte`。
 
-## コストとリスク
-
-- **自動ログインが消える**（いちばん大きい）。詳細は下の「認証」。
-- **信頼境界**。lokuyow.github.io の JS が combine の realm で動く（DOM・storage・シムに
-  フルアクセス）。上流ドキュメントも「ホスト JS から秘密情報を隔離したいなら iframe を使え」と
-  明記している。combine は鍵を持たない（Nosskey iframe のまま）ので README の
-  「秘密鍵はこのアプリに渡りません」は維持できるが、説明の書き足しは要る。
-- **重さ**。いまは Tiptap や mediabunny のコストが別ドキュメント側にある。Web Component では
-  combine の document とメインスレッドに乗る。`ComposeView` は常時マウントなので、
-  移行するなら compose ルートに入ってから `createElement` する遅延生成に変えること。
-- **データは移行されない**。iframe 時代の下書き・設定は引き継がれない。
-- **クロスオリジンの実機確認が要る**。モジュールとチャンクは CORS 済みだが、動画圧縮が
-  遅延ロードする worker / WASM がクロスオリジンで動くかは実機（特に iOS Safari）で見るしかない。
-  combine は CSP を設定していないので `worker-src` 側の問題は無い。
-- 影響しない制約: ローカル nsec 非対応（combine は Nosskey なので無関係）、
-  browser-history と share-target の入力処理が無効（未使用）。
+- **読み込み**: `import()` にランタイムの URL を渡す（`@vite-ignore`）。エントリは 185 バイトの
+  再エクスポートで、本体は隣のチャンク（約 2.7MB）を動的 import する。import した時点で
+  `customElements.define` まで走る（`customElements.get` のガード付き）ので、
+  `customElements.whenDefined` で待てる。GitHub Pages が `access-control-allow-origin: *` を
+  返すのでクロスオリジンで読める。
+- **生成タイミング**: compose タブに **初めて入ったときだけ**生成し、以後は保持する。
+  常時マウントだと 2.7MB の読み込みと Tiptap の初期化がアプリ起動時にメインスレッドへ乗るため。
+  タブを離れても壊さないのは、下書きと初期化コストを 2 回払わないため
+  （`App.svelte` が `active` を渡し、`ComposeView` がそれを見て組み立てる）。
+- **高さ**: 要素は definite な CSS height が必須で `auto` は非対応。host box（ヘッダとタブバーの
+  あいだの flex の余り）を `ResizeObserver` で測って px で渡している。加えて `visualViewport` も
+  見る: iOS のソフトキーボードはページをリサイズしないので、レイアウト上の高さのまま渡すと
+  エディタのフッタ（投稿ボタン）がキーボードの下に潜る（`composerHeight`）。
+- **設定**: `setSettings({ locale: 'ja', themeMode: 'light', clientTagEnabled: true })`。
+  iframe 時代のクエリ（`defaultLocale` / `embedClientTag`）と同じ内容。`light` 固定なのは
+  combine が light 専用テーマ（`color-scheme: light`）だから。
+- **ログアウト・アカウント切替**: eHagaki は「誰がログイン中か」を自分の storage で判断するので、
+  pubkey が変わったら要素を作り直す。ログアウト時は `ehagaki.web-component.v1:` を全消しする
+  （下書きと「ログイン中の相手」が combine のオリジンに残るため。同じ端末の次の人に
+  前の人の書きかけが見えてはいけない）。代償として eHagaki 側の設定も消える。
+- **エラー**: `ehagaki-post-error` の detail は `{ code }` だけで、iframe 時代にあった `message` が無い。
+  日本語メッセージは combine 側で持つ（`postErrorMessage`）。`empty_content` は eHagaki 自身が
+  UI で言うのでトーストは出さない。
 
 ## 認証
 
 Web Component は NIP-07 として**ホストの `window.nostr` を直接使う**。combine は Nosskey の
-iframe を直接叩いていて `window.nostr` を生やしていなかったので、シムを足した
-（`src/lib/nip07.ts`。nosskey-iframe の README にある想定どおりの使い方）。eHagaki が実際に
-呼ぶのは `getPublicKey` と `signEvent` の 2 つだけで、`getRelays` は使わず write リレーは
-kind 10002 を自前で取りに行く。
+iframe を直接叩いていて `window.nostr` を生やしていなかったので、シムを足してある
+（`src/lib/nip07.ts`）。eHagaki が実際に呼ぶのは `getPublicKey` と `signEvent` の 2 つだけで、
+`getRelays` は使わず write リレーは kind 10002 を自前で取りに行く。
 
-**シムを足しても初回の 1 タップは消えない。** eHagaki は「ログイン済みかどうか」を自分の
-storage で判断していて、`window.nostr` は「誰か」しか答えないため。
+**シムがあっても初回の 1 タップは消えない。** eHagaki は「ログイン済みかどうか」を自分の storage で
+判断していて、`window.nostr` は「誰か」しか答えないため。
 
 - 起動時の復元（`runManagedAuthRestore`）は保存済みアカウントがある場合にしか走らない。
   nip07 経路は `waitForExtension()` → `authenticate()`（= `window.nostr.getPublicKey()`）→
@@ -78,11 +72,40 @@ storage で判断していて、`window.nostr` は「誰か」しか答えない
   ボタン）からしか始まらない。`window.nostr` があれば勝手に繋ぐ経路は無い。
 - 2 回目以降は無言。タップの結果が combine のオリジンに残り、シムはキャッシュ済みの pubkey を
   返すので Nosskey のパスキー確認も出ない。
-- combine 側でアカウントを切り替えると `isExpectedAccount` の照合に落ちる。要素を作り直す
-  （`remove()` → 再 `append`）ことで解消する想定。
+- combine 側でアカウントを切り替えると `isExpectedAccount` の照合に落ちる。要素を作り直すことで
+  拾い直す（実装済み）。
 
 `getPublicKey` をキャッシュから返すのはこのためでもある。eHagaki は復元時に `authenticate()` を
 呼ぶので、Nosskey の iframe へ往復させると起動のたびに不意のパスキー確認が出かねない。
+
+## 信頼境界
+
+lokuyow.github.io の JS が combine の realm で動く（DOM・storage・`window.nostr` シムにフルアクセス）。
+上流ドキュメントも「ホスト JS から秘密情報を隔離したいなら iframe を使え」と明記している。
+
+秘密鍵は依然として combine にも eHagaki にも渡らない（署名は nosskey.app の iframe の中だけで起き、
+そこが独自の同意ダイアログでゲートする）ので README の「秘密鍵はこのアプリに渡りません」は維持できる。
+変わったのは**エディタのコードが同じページで動くこと**で、README にその旨を書き足した。
+
+## クロスオリジンの worker（解決済み）
+
+動画圧縮の ffmpeg.wasm は `new Worker(new URL("worker-….js", import.meta.url), { type: "module" })` で
+worker を作る。これはクロスオリジンだと SecurityError になるが、**上流が対応済み**だった:
+`createClassWorkerBlobURL` が「worker の URL の origin がホストと違うとき」だけ fetch して
+blob URL に包み、`classWorkerURL` として渡している。画像圧縮
+（browser-image-compression）も元から blob worker。combine は CSP を設定していないので
+`worker-src` 側の制約も無い。
+
+とはいえ実機（特に iOS Safari）で動画を通したことはまだ無い。下記の宿題に残す。
+
+## 残っている宿題
+
+- [ ] **実機確認**。モバイルのキーボード挙動（`composerHeight` の visualViewport 補正）と
+  動画圧縮を iOS Safari / Android Chrome で通す。CI・サンドボックス環境からは
+  クロスオリジンのバンドルを実際に読ませられなかったので、ここは手で見るしかない。
+- [ ] **データ移行は無い**。iframe 時代の下書き・設定は引き継がれない（別オリジンの storage）。
+- [ ] `composer.focus` 相当は Web Component 版にも無い。TODO の「投稿画面を開いたときに
+  エディタへ自動フォーカスする」は移行しても解決しない。
 
 ## 上流への要望（本命）
 
@@ -94,8 +117,6 @@ opt-in にしてもらう必要はある。NIP-07 拡張は普通 `getPublicKey(
 無条件だと拡張を入れている人が他の埋め込み先でページを開いただけでプロンプトを踏む。
 `auto-login` 属性か `setSettings({ autoLoginNip07: true })` のような明示的なスイッチが要る。
 
-これが入れば、初回タップとアカウント切替の同期（要素の作り直しで拾い直せる）が同時に片付く。
-
 代案として signer 提供 API（例: `configureSigner({ pubkeyHex, signEvent })` を接続前に渡し、
 渡された時点でログイン済みとして扱う）もある。iframe 版の parent-client 連携の Web Component 版に
 あたるもので、`window.nostr` をページグローバルに生やさずに済む点が優れているが、公開 API が
@@ -105,7 +126,7 @@ callback/provider API はありません」と明記されているので、ど�
 ## host-owned mode（採らない）
 
 `configureHostOwned({ submit, uploadMedia })` を接続前に一度呼ぶと、eHagaki は認証も
-リレーも target 取得も始めない。ログイン UI 自体が出なくなるので自動ログインの後退は消え、
+リレーも target 取得も始めない。ログイン UI 自体が出なくなるので初回 1 タップは消え、
 publish 先も combine が決められる（TODO の「リレー設定」の write リレー問題も片付く）。
 
 ただし代わりに combine が持つことになるものが大きい:
@@ -120,21 +141,8 @@ publish 先も combine が決められる（TODO の「リレー設定」の wri
 
 **実装量の割に得るものが少ないので採らない。** そもそも eHagaki を埋め込む理由は、エディタと
 メディアの圧縮・アップロードをまるごと借りることにある。4 を自前で持つ時点でその理由が薄れ、
-得られるのは自動ログインの維持と write リレーの選択権だけになる。前者は上の自動ログインで、
+得られるのは初回 1 タップの解消と write リレーの選択権だけになる。前者は上の自動ログインで、
 後者は eHagaki 自身の kind 10002 取得で解ける類の話で、どちらもこの実装量に見合わない。
 
 なお 3 と 4 は TODO の「publish 経路が要る（本丸）」と同じ土台なので、そちらを別の理由
 （リアクション・リポスト・フォロー）で作ったなら、host-owned は後から選べる選択肢として残る。
-
-## 乗り換えるときの手順と宿題
-
-1. 実験ブランチで self-publish の Web Component を動かし、モバイルのキーボード挙動・
-   動画圧縮 worker・初回ログイン導線を実機で確認する。
-2. 初回 1 タップを許容できるなら、テーマ統合と storage 目当てで乗り換える価値はある。
-   上流に自動ログインが入っていれば、その 1 タップも無くなる。
-3. 宿題: combine のログアウト・アカウント切替は eHagaki 側の storage に伝わらないので、
-   要素の作り直しと namespace の掃除が要る。
-4. `ComposeView` は常時マウントをやめ、compose ルートに入ってから要素を生成する。
-
-`composer.focus` 相当は Web Component 版にも無いので、TODO の「投稿画面を開いたときに
-エディタへ自動フォーカスする」は Web Component にしても解決しない。
