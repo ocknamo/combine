@@ -10,11 +10,31 @@ const tabs = [
 ] as const;
 
 const active = $derived(router.current.name);
+
+/**
+ * Tapping ホーム while the timeline is already on screen scrolls back to the
+ * top instead of doing nothing.
+ *
+ * The tabs navigate with plain anchors, and assigning the hash the page is
+ * already on pushes no entry and fires no `hashchange` — so without this a tap
+ * on the tab the user is standing on is simply swallowed. Going back to the top
+ * of the timeline is what the button reads as after scrolling a long way down.
+ */
+function onHomeClick(event: MouseEvent): void {
+  if (active !== 'home') return;
+  event.preventDefault();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 </script>
 
 <nav aria-label="メインナビゲーション">
   {#each tabs as tab (tab.name)}
-    <a href={`#${tab.path}`} class:active={active === tab.name} aria-current={active === tab.name ? 'page' : undefined}>
+    <a
+      href={`#${tab.path}`}
+      class:active={active === tab.name}
+      aria-current={active === tab.name ? 'page' : undefined}
+      onclick={tab.name === 'home' ? onHomeClick : undefined}
+    >
       {#if tab.name === 'home'}
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5" /><path d="M5.5 10.5V20h13v-9.5" /></svg>
       {:else if tab.name === 'search'}

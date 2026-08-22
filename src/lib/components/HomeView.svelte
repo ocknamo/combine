@@ -12,6 +12,7 @@ import {
 } from '../nostrCache';
 import { navigateOnAction } from '../postAction';
 import { AUTHOR_ACTION_ID, MATERIAL_ICONS, POST_ACTIONS_ATTR } from '../postRef';
+import { type SwipeDirection, swipeHorizontal } from '../swipe';
 
 type Feed = 'follows' | 'global';
 
@@ -69,10 +70,28 @@ onMount(() => {
 // widget, and `auth.relays` changes seconds into the session — see
 // `cacheRelay.svelte.ts`.
 const relays = $derived(relaysAttr(cacheRelay.upstreamRelays));
+
+// Swiping moves along the switcher, the way the tabs are laid out: dragging
+// left pulls グローバル in from the right, dragging right pulls フォロー中 back.
+// A swipe past either end does nothing — there is no third feed to wrap to,
+// and wrapping would land the user somewhere they did not aim for.
+//
+// Only meaningful while both tabs exist; logged out there is just グローバル.
+function onSwipe(direction: SwipeDirection): void {
+  if (!auth.loggedIn) return;
+  feed = direction === 'left' ? 'global' : 'follows';
+}
 </script>
 
-<!-- One listener covers both feeds: the action event bubbles and is composed. -->
-<section use:navigateOnAction>
+<!--
+  One listener covers both feeds: the action event bubbles and is composed.
+
+  The swipe listener sits at the same level so the gesture works over the feed
+  itself, not only over the switcher — that is where the user's thumb is. It
+  recognises the swipe only once the finger is up and never calls
+  `preventDefault()`, so scrolling and taps inside the cards are untouched.
+-->
+<section use:navigateOnAction use:swipeHorizontal={onSwipe}>
   {#if auth.loggedIn}
     <div class="feed-switch" role="tablist" aria-label="タイムライン切り替え">
       <button
