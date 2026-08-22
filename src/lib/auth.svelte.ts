@@ -1,4 +1,9 @@
-import { NosskeyIframeClient, NosskeyIframeError, type NostrEvent } from 'nosskey-iframe';
+import {
+  NosskeyIframeClient,
+  NosskeyIframeError,
+  type NostrEvent,
+  type RelayMap,
+} from 'nosskey-iframe';
 import { DEFAULT_RELAYS, readRelaysFrom } from './relays';
 
 const NOSSKEY_IFRAME_URL = 'https://nosskey.app/#/iframe';
@@ -132,6 +137,20 @@ class AuthStore {
     } catch {
       // Relay discovery is best-effort; keep whatever relays we already have.
     }
+  }
+
+  /**
+   * The signed-in user's relay map, straight from the Nosskey iframe (NIP-07
+   * `getRelays()`), for the `window.nostr` shim to hand on unchanged.
+   *
+   * {@link refreshRelays} is the app's own reader and narrows this to the read
+   * relays; a NIP-07 caller wants the read/write flags intact. Errors propagate
+   * here — a caller asking directly should see the failure.
+   */
+  async getRelayMap(): Promise<RelayMap> {
+    const client = this.#getClient();
+    await client.ready();
+    return client.getRelays();
   }
 
   #onVisibilityChange = (): void => {
