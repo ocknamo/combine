@@ -8,10 +8,16 @@
 ※ Web Component 版（`<ehagaki-composer>`）への移行は**対応済み**。経緯・実装・宿題は
 `EHAGAKI_WEB_COMPONENT.md` を参照。以下はその上で残っているもの。
 
-- [ ] **実機で通す**（移行の宿題のうち唯一の必須）
+- [ ] **実機で通す**
   - モバイルのキーボード挙動（`composerHeight` の visualViewport 補正）と動画圧縮を
     iOS Safari / Android Chrome で確認する。クロスオリジンの worker は上流が対応済み
     （blob URL 経由）だが、実機で通したことはまだ無い。
+
+- [ ] **Dexie のバージョンを nostr-cache と eHagaki で揃える**
+  - 両者が別バージョンを同梱していて（4.4.4 / 4.4.2）、同じ realm に載せると後から
+    読み込んだ方が throw する。いまは combine 側で回避している（`shieldDexieRegistry`。
+    経緯は `EHAGAKI_WEB_COMPONENT.md`）。
+  - nostr-cache 側を 4.4.2 に寄せれば回避策を消せる。上流の実装依存が減る。
 
 - [ ] **eHagaki 側の初回ログイン 1 タップを消す**
   - 上流に **NIP-07 の自動ログイン（opt-in）** を足してもらうのが本命。差分は小さい

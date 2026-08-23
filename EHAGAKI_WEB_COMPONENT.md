@@ -98,11 +98,45 @@ blob URL に包み、`classWorkerURL` として渡している。画像圧縮
 
 とはいえ実機（特に iOS Safari）で動画を通したことはまだ無い。下記の宿題に残す。
 
+## Dexie の衝突（同じ realm に載せた代償）
+
+**移行後に実際に踏んだ不具合。** compose を開くと「エディタを読み込めませんでした」になり、
+リロードで直ったり直らなかったりした。真の原因は上流の `catch {}` に握り潰されていて、
+表に出ていたのは `initialization_failed` だけだった。中身はこれ:
+
+```
+Error: Two different versions of Dexie loaded in the same app: 4.4.2 and 4.4.4
+```
+
+nostr-cache と eHagaki が**それぞれ別バージョンの Dexie を同梱**している
+（eHagaki 4.4.2 / nostr-cache 4.4.4）。Dexie は `globalThis[Symbol.for('Dexie')]` を
+レジストリにしていて、先に読み込んだ方がスロットを取り、後から来た別バージョンが throw する:
+
+```js
+const shared = globalThis[SYM] || (globalThis[SYM] = mine);
+if (mine.semVer !== shared.semVer) throw new Error(...);
+```
+
+iframe 時代は別ドキュメントだったので起きなかった。**同じ realm に載せた直接の代償**で、
+「信頼境界」と並ぶ移行のコストとして数えるべきものだった。
+
+どちらが先に読み込まれるかは競争になる（リレーのバンドルは起動時、コンポーザのバンドルは
+compose を初めて開いたとき）。だから症状が「たまに動く」になっていた。
+
+combine 側の対処は `shieldDexieRegistry`（`ehagakiComposer.ts`）。コンポーザを組み立てている
+あいだだけスロットを「読むと空」に見せ、終わったら最初の持ち主に返す。両者は別の DB
+（`combine-timeline` / `eHagakiDB`）を開くだけで接続を共有しないので、2 つの Dexie が同居しても
+実害は無い。あの検査は「同じ Dexie を二重にバンドルしてしまった」を捕まえるためのもの。
+
+**本筋の直し方は上流でバージョンを揃えること。** nostr-cache は combine と同じ作者の管理下に
+あるので、そちらを eHagaki と同じ 4.4.2 に寄せる（あるいは eHagaki に 4.4.4 へ上げてもらう）のが
+素直で、揃った時点でこの回避策は要らなくなる。
+
 ## 残っている宿題
 
 - [ ] **実機確認**。モバイルのキーボード挙動（`composerHeight` の visualViewport 補正）と
-  動画圧縮を iOS Safari / Android Chrome で通す。CI・サンドボックス環境からは
-  クロスオリジンのバンドルを実際に読ませられなかったので、ここは手で見るしかない。
+  動画圧縮を iOS Safari / Android Chrome で通す。
+- [ ] **Dexie のバージョンを上流で揃える**（上記）。揃えば `shieldDexieRegistry` は削除できる。
 - [ ] **データ移行は無い**。iframe 時代の下書き・設定は引き継がれない（別オリジンの storage）。
 - [ ] `composer.focus` 相当は Web Component 版にも無い。TODO の「投稿画面を開いたときに
   エディタへ自動フォーカスする」は移行しても解決しない。
