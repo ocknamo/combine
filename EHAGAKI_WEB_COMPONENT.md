@@ -41,9 +41,9 @@ combine の投稿エディタは eHagaki の埋め込み。iframe（`ehagaki.emb
   タブを離れても壊さないのは、下書きと初期化コストを 2 回払わないため
   （`App.svelte` が `active` を渡し、`ComposeView` がそれを見て組み立てる）。
 - **高さ**: 要素は definite な CSS height が必須で `auto` は非対応。host box（ヘッダとタブバーの
-  あいだの flex の余り）を `ResizeObserver` で測って px で渡している。加えて `visualViewport` も
-  見る: iOS のソフトキーボードはページをリサイズしないので、レイアウト上の高さのまま渡すと
-  エディタのフッタ（投稿ボタン）がキーボードの下に潜る（`composerHeight`）。
+  あいだの flex の余り）を `ResizeObserver` で測って px で渡している。ソフトキーボードが開いている
+  あいだは高さを渡すだけでは足りず、可視領域そのものに貼り付ける（`composerBox`。下記
+  「キーボードで投稿ボタンが隠れる」）。
 - **設定**: `setSettings({ locale: 'ja', themeMode: 'light', clientTagEnabled: true })`。
   iframe 時代のクエリ（`defaultLocale` / `embedClientTag`）と同じ内容。`light` 固定なのは
   combine が light 専用テーマ（`color-scheme: light`）だから。
@@ -132,10 +132,47 @@ combine 側の対処は `shieldDexieRegistry`（`ehagakiComposer.ts`）。コン
 あるので、そちらを eHagaki と同じ 4.4.2 に寄せる（あるいは eHagaki に 4.4.4 へ上げてもらう）のが
 素直で、揃った時点でこの回避策は要らなくなる。
 
+## キーボードで投稿ボタンが隠れる（修正済み・実機確認は未）
+
+**実機で報告された不具合。** モバイルで本文をタップしてキーボードが出ても投稿フォームは縦長のままで、
+フッタの投稿ボタンがキーボードの下に潜ったままになる。
+
+最初の実装（`composerHeight`）は「host box の高さを、可視領域の下端で頭打ちにする」だった。
+これは **host box の上端が画面の上端と一致し続ける**ことを前提にしていて、combine では成り立たない:
+
+- combine はページ全体がスクロールするレイアウト（`.app` は `min-height: 100dvh`、ヘッダとタブバーは
+  sticky）で、iOS Safari も Android Chrome も**キーボードを出すときにキャレットを見せようとして
+  ドキュメントをスクロールする**。host box はヘッダの下へ潜り、可視領域は下から削られるので、
+  両者の上端がずれる。ずれたぶん、高さをいくら詰めても要素の下端は画面の下端に揃わない。
+- しかもそのスクロールは resize の**後**に起きて、`visualViewport` のイベントを出さない
+  （`scroll` が出るのは visual viewport 自体の offset が動いたときだけ）。つまり計算に使う
+  `getBoundingClientRect().top` は古いままになる。
+
+直し方は 2 つ:
+
+- **キーボード中は要素を可視領域に fixed で貼る**（採用）。`position: fixed` は layout viewport 基準
+  なので `top` に `visualViewport.offsetTop`、高さに `visualViewport.height` を入れると可視領域に
+  ちょうど重なる。左右は host box のものを使う（`max-width: 640px` のセンタリングを引き継ぐ）。
+  結果として入力中はエディタがヘッダとタブバーの上に乗る全画面になり、フッタがキーボードの
+  真上に来る。z-index は 20（署名オーバーレイの 1000 より下 — エディタから署名へ進めなくなるため）。
+- 高さを 400px などに固定する。キーボードの高さは端末・言語・予測変換の有無で変わるので、
+  隠れないことを保証できるほど小さくすると平常時が窮屈になる。採らない。
+
+キーボードの判定は「layout viewport（`documentElement.clientHeight`）より visual viewport が
+`KEYBOARD_THRESHOLD`=120px 以上短い」。ブラウザ UI や iOS のアクセサリバーが削るのは数十 px、
+キーボードは画面の 1/3 以上で、あいだは十分に空いている。ピンチズームも visual viewport を
+縮めるので `scale` で弾く（ズーム中に貼り付けるとパンと喧嘩する）。
+
+閾値以下のときは従来どおり flow のまま可視領域の下端で頭打ちにする（アクセサリバー用）。
+貼り付け中は `MIN_COMPOSER_HEIGHT` を効かせない: 可視領域より高くしたらフッタがまた潜るため。
+
+購読するのは host box の `ResizeObserver`・`visualViewport` の `resize`/`scroll`・**`window` の
+`scroll`**。最後のひとつが上記「イベントの出ないスクロール」を拾う。
+
 ## 残っている宿題
 
-- [ ] **実機確認**。モバイルのキーボード挙動（`composerHeight` の visualViewport 補正）と
-  動画圧縮を iOS Safari / Android Chrome で通す。
+- [ ] **実機確認**。上記のキーボード対応（`composerBox`）と動画圧縮を
+  iOS Safari / Android Chrome で通す。
 - [ ] **Dexie のバージョンを上流で揃える**（上記）。揃えば `shieldDexieRegistry` は削除できる。
 - [ ] **データ移行は無い**。iframe 時代の下書き・設定は引き継がれない（別オリジンの storage）。
 - [ ] `composer.focus` 相当は Web Component 版にも無い。TODO の「投稿画面を開いたときに

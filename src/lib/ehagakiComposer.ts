@@ -253,27 +253,91 @@ export function shieldDexieRegistry(target: SymbolBag = globalThis as SymbolBag)
 /** Never shrink the editor past this, however little room is left. */
 export const MIN_COMPOSER_HEIGHT = 240;
 
-export interface ComposerHeightInput {
-  /** Top of the host box, in layout-viewport coordinates. */
-  hostTop: number;
-  /** Height the host box has in the page's own layout. */
-  hostHeight: number;
-  /** `visualViewport`'s offset and height, or `null` where it is missing. */
-  viewport: { offsetTop: number; height: number } | null;
+/**
+ * How much of the layout viewport has to go missing before something is taken
+ * to be covering the page.
+ *
+ * Browser chrome and the iOS accessory bar (an external keyboard's toolbar)
+ * take tens of pixels; a software keyboard takes a third of the screen or more.
+ * The gap between the two is wide enough that one number separates them.
+ */
+export const KEYBOARD_THRESHOLD = 120;
+
+/** What `visualViewport` reports, or `null` where it is missing. */
+export interface ViewportMetrics {
+  /** Where the visible area starts, measured from the layout viewport's top. */
+  offsetTop: number;
+  height: number;
+  /** Pinch-zoom factor: it shrinks the visible area the same way a keyboard does. */
+  scale: number;
+}
+
+export interface ComposerBoxInput {
+  /** The host box, in layout-viewport coordinates (`getBoundingClientRect`). */
+  host: { top: number; left: number; width: number; height: number };
+  viewport: ViewportMetrics | null;
+  /** The layout viewport's height — what the software keyboard does not take. */
+  layoutHeight: number;
 }
 
 /**
- * The height to give the element.
+ * Where to put the element and how big to make it.
  *
- * It needs a definite one — `auto` is unsupported — and combine wants that to
- * follow the viewport. The host box already does (it is the flex remainder
- * between the header and the tab bar), so the height is its measured one,
- * except when the visual viewport is smaller than the layout viewport: that is
- * the software keyboard on iOS, which does not resize the page. Left at the
- * layout height there, the editor's footer — the post button — sits under the
- * keyboard. Capping at the visible bottom keeps it reachable.
+ * `flow` leaves it where the markup puts it and only sets a height; `pinned`
+ * takes it out of flow and fixes it over the visible area.
  */
-export function composerHeight({ hostTop, hostHeight, viewport }: ComposerHeightInput): number {
-  const visible = viewport ? viewport.offsetTop + viewport.height - hostTop : hostHeight;
-  return Math.max(Math.min(hostHeight, visible), MIN_COMPOSER_HEIGHT);
+export type ComposerBox =
+  | { mode: 'flow'; height: number }
+  | { mode: 'pinned'; top: number; left: number; width: number; height: number };
+
+/**
+ * Whether a software keyboard is up: the visible area is much shorter than the
+ * layout viewport, and it is not zoom that made it so.
+ */
+function keyboardIsOpen(viewport: ViewportMetrics, layoutHeight: number): boolean {
+  if (viewport.scale > 1.05) return false;
+  return layoutHeight - viewport.height > KEYBOARD_THRESHOLD;
+}
+
+/**
+ * The box to give the element. It needs a definite height — `auto` is
+ * unsupported — and combine wants that to follow whatever is actually visible.
+ *
+ * With no keyboard, the host box already follows the viewport (it is the flex
+ * remainder between the header and the tab bar), so the element is given its
+ * height, capped at the visible bottom for the small bites browser chrome takes.
+ *
+ * With a keyboard up, that is not enough. combine's page is document-scrolling,
+ * and both mobile browsers scroll it to reveal the caret when the keyboard
+ * opens: the host box slides up under the header while the visible area shrinks
+ * from the bottom, so the two no longer share a top edge and a height alone
+ * cannot line the element up with what is on screen. Worse, the scroll happens
+ * after the resize and fires no `visualViewport` event, so a height computed
+ * from the old position is what stays. Both are why the footer — the post
+ * button — ends up under the keyboard.
+ *
+ * So while the keyboard is up the element is pinned instead: fixed to the
+ * visible rectangle (`top` is the visual viewport's own offset, since fixed
+ * positioning is relative to the layout viewport), full height of it, keeping
+ * the host box's horizontal placement. The editor goes full-screen over the
+ * header and the tab bar for as long as the user is typing, which is the moment
+ * neither of those is what they want to look at, and its footer sits exactly on
+ * top of the keyboard.
+ *
+ * Pinned height is the visible height, with no minimum applied: padding it back
+ * past the visible bottom would put the footer under the keyboard again, which
+ * is the one thing this mode exists to prevent.
+ */
+export function composerBox({ host, viewport, layoutHeight }: ComposerBoxInput): ComposerBox {
+  if (viewport && keyboardIsOpen(viewport, layoutHeight)) {
+    return {
+      mode: 'pinned',
+      top: viewport.offsetTop,
+      left: host.left,
+      width: host.width,
+      height: viewport.height,
+    };
+  }
+  const visible = viewport ? viewport.offsetTop + viewport.height - host.top : host.height;
+  return { mode: 'flow', height: Math.max(Math.min(host.height, visible), MIN_COMPOSER_HEIGHT) };
 }

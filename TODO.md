@@ -9,9 +9,11 @@
 `EHAGAKI_WEB_COMPONENT.md` を参照。以下はその上で残っているもの。
 
 - [ ] **実機で通す**
-  - モバイルのキーボード挙動（`composerHeight` の visualViewport 補正）と動画圧縮を
-    iOS Safari / Android Chrome で確認する。クロスオリジンの worker は上流が対応済み
-    （blob URL 経由）だが、実機で通したことはまだ無い。
+  - キーボードで投稿ボタンが隠れる件は対応済み（`composerBox`。実機の報告を受けて
+    「高さだけ縮める」から「キーボード中は可視領域に fixed で貼る」に変えた。経緯は
+    `EHAGAKI_WEB_COMPONENT.md` の「高さ」）。**その修正自体の実機確認が残っている。**
+  - 動画圧縮も未確認。クロスオリジンの worker は上流が対応済み（blob URL 経由）だが、
+    実機で通したことはまだ無い。
 
 - [ ] **Dexie のバージョンを nostr-cache と eHagaki で揃える**
   - 両者が別バージョンを同梱していて（4.4.4 / 4.4.2）、同じ realm に載せると後から

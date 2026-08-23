@@ -12,7 +12,7 @@
 import { auth } from '../auth.svelte';
 import {
   clearEhagakiStorage,
-  composerHeight,
+  composerBox,
   createComposer,
   describeFailure,
   EHAGAKI_SETTINGS,
@@ -68,7 +68,7 @@ async function mountComposer(): Promise<void> {
     host.appendChild(element);
     composer = element;
     builtFor = auth.pubkey;
-    applyHeight();
+    applyBox();
     await element.whenReady();
     await element.setSettings(EHAGAKI_SETTINGS);
     status = 'ready';
@@ -116,16 +116,41 @@ function teardown(): void {
   status = 'idle';
 }
 
-function applyHeight(): void {
+/**
+ * Size the element to what is visible, and while a keyboard is up, lift it out
+ * of the page and fix it over the visible area (see `composerBox`).
+ */
+function applyBox(): void {
   if (!composer || !hostEl) return;
   const rect = hostEl.getBoundingClientRect();
+  // The host box has no size while another tab is on screen — this view stays
+  // mounted and is only hidden. Nothing measured then is worth applying.
+  if (rect.width === 0 && rect.height === 0) return;
   const viewport = window.visualViewport;
-  const height = composerHeight({
-    hostTop: rect.top,
-    hostHeight: rect.height,
-    viewport: viewport ? { offsetTop: viewport.offsetTop, height: viewport.height } : null,
+  const box = composerBox({
+    host: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
+    viewport: viewport
+      ? { offsetTop: viewport.offsetTop, height: viewport.height, scale: viewport.scale }
+      : null,
+    layoutHeight: document.documentElement.clientHeight,
   });
-  composer.style.height = `${height}px`;
+  const style = composer.style;
+  if (box.mode === 'pinned') {
+    style.position = 'fixed';
+    style.top = `${box.top}px`;
+    style.left = `${box.left}px`;
+    style.width = `${box.width}px`;
+    // Over the sticky header and tab bar, under the signing overlay (z-index
+    // 1000 in `app.css`), which has to stay reachable from the editor.
+    style.zIndex = '20';
+  } else {
+    style.position = '';
+    style.top = '';
+    style.left = '';
+    style.width = '';
+    style.zIndex = '';
+  }
+  style.height = `${box.height}px`;
 }
 
 // Build it once this tab is opened, and rebuild it when the account changes:
@@ -183,22 +208,29 @@ $effect(() => {
   };
 });
 
-// The host box follows the viewport, and the element's height is copied from
-// it. `visualViewport` is watched as well for the case the box cannot see: the
-// software keyboard on iOS, which shrinks what is visible without resizing the
-// page (see `composerHeight`).
+// Everything that can move the element away from what is visible, since the
+// box is computed from all three: the host box changing size, the visual
+// viewport changing (a software keyboard opening, closing, or being scrolled
+// within the page), and the page itself scrolling.
+//
+// The page scroll is not the afterthought it looks like. Both mobile browsers
+// scroll the document to reveal the caret when the keyboard opens, and that
+// scroll fires no `visualViewport` event — without this listener the box would
+// keep the position the element had before the keyboard pushed it.
 $effect(() => {
   const host = hostEl;
   if (!host) return;
-  const observer = new ResizeObserver(applyHeight);
+  const observer = new ResizeObserver(applyBox);
   observer.observe(host);
   const viewport = window.visualViewport;
-  viewport?.addEventListener('resize', applyHeight);
-  viewport?.addEventListener('scroll', applyHeight);
+  viewport?.addEventListener('resize', applyBox);
+  viewport?.addEventListener('scroll', applyBox);
+  window.addEventListener('scroll', applyBox, { passive: true });
   return () => {
     observer.disconnect();
-    viewport?.removeEventListener('resize', applyHeight);
-    viewport?.removeEventListener('scroll', applyHeight);
+    viewport?.removeEventListener('resize', applyBox);
+    viewport?.removeEventListener('scroll', applyBox);
+    window.removeEventListener('scroll', applyBox);
   };
 });
 
