@@ -108,9 +108,14 @@ $effect(() => {
       <PostView id={route.param} />
     {/if}
 
-    <!-- Compose stays mounted so the eHagaki draft and bridge survive tab switches -->
+    <!--
+      Compose stays mounted so the editor survives a tab switch: the eHagaki
+      Web Component is expensive to build and holds the draft. It builds
+      nothing until `active` first turns true, so an app that is never used to
+      post never pays for it (see `ComposeView.svelte`).
+    -->
     <div class="view-holder" class:hidden={route.name !== 'compose'}>
-      <ComposeView />
+      <ComposeView active={route.name === 'compose'} />
     </div>
   </main>
   <TabBar />

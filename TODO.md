@@ -5,28 +5,33 @@
 
 ## eHagaki（投稿エディタ）連携
 
+※ Web Component 版（`<ehagaki-composer>`）への移行は**対応済み**。経緯・実装・宿題は
+`EHAGAKI_WEB_COMPONENT.md` を参照。以下はその上で残っているもの。
+
+- [ ] **実機で通す**（移行の宿題のうち唯一の必須）
+  - モバイルのキーボード挙動（`composerHeight` の visualViewport 補正）と動画圧縮を
+    iOS Safari / Android Chrome で確認する。クロスオリジンの worker は上流が対応済み
+    （blob URL 経由）だが、実機で通したことはまだ無い。
+
+- [ ] **eHagaki 側の初回ログイン 1 タップを消す**
+  - 上流に **NIP-07 の自動ログイン（opt-in）** を足してもらうのが本命。差分は小さい
+    （`authenticateWithNip07()` は既にあり、ログインダイアログのボタンからしか呼ばれていない）。
+  - combine 側で先回りできることは無い。`window.nostr` シムは入っていて、それでも消えない
+    （eHagaki は「ログイン済みか」を自分の storage で判断するため）。
+
 - [ ] **投稿画面を開いたときにエディタへ自動フォーカスする**
-  - 現状不可。eHagaki はクロスオリジン iframe（`https://lokuyow.github.io`）のため、
-    親（combine）から中の入力欄を `.focus()` できない。
-  - `ehagaki.embed` プロトコルにフォーカス用メッセージ（例: `composer.focus`）が無く、
-    送る手段も無い。
-  - モバイルはユーザー操作と非同期なフォーカスではソフトキーボードが開かない制約もある。
-  - → 実現には **eHagaki 側プロトコルの拡張提案** が必要。
+  - 公開 API としては依然として無い（`composer.focus` 相当は Web Component 版にも無い）。
+  - ただし open ShadowRoot なので、中の contenteditable を探して `.focus()` すること自体は
+    できるようになった。上流の DOM 構造に依存するので、やるなら壊れる前提の実装になる。
+  - モバイルはユーザー操作と非同期なフォーカスではソフトキーボードが開かない制約も残る。
+  - → 素直に実現するには **上流へのフォーカス API の要望** が要る。
 
 - [ ] **本文・メンションのプリフィル UI を追加する**
-  - ブリッジ実装（`composer.setContext`）は `reply` / `quotes` / `content` に対応済み。
-    - `reply`（返信先）・`quotes`（引用先）は UI 対応済み（`ComposeView.svelte`）。
-    - `content`（本文プリフィル）は型・ブリッジはあるが **UI から未使用**。
+  - `setContext({ content })` を呼ぶだけで実現できる（要素のメソッド直呼び。`reply` / `quotes` は
+    UI 対応済み、`content` は **UI から未使用**）。
   - メンション専用フィールドは無い。`content` に `nostr:npub…` / `nostr:nprofile…` を
     含める形になる（eHagaki 側のパース実装に依存）。
   - → 「本文やメンションを差し込んで投稿画面を開く」入口（UI or URL クエリ等）を足せば実現可。
-
-- [ ] **Web Component 版（`<ehagaki-composer>`）へ乗り換えるか**
-  - 調べた結果は `EHAGAKI_WEB_COMPONENT.md` に分けた。**いまは乗り換えない**。
-    テーマ統合・ホスト側 storage・ブリッジ削減は魅力だが、parent-client 連携で成立している
-    自動ログインが失われ、初回はエディタ内でログインを 1 タップ必要になるため。
-  - 上流に NIP-07 の自動ログイン（opt-in）が入れば乗り換える。それまでは iframe 版のまま。
-  - 前提の `window.nostr` シム（`src/lib/nip07.ts`）は導入済み。
 
 ## Nostr Web Components（表示）のカスタマイズ
 
@@ -68,11 +73,12 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
     `auth.relays` は起動直後に差し替わるため、そのままウィジェットに渡すと
     再購読で表示が消える（詳細は `CLAUDE.md`）。
   - 残課題（write リレー）: 投稿（publish）は combine 自身ではなく **埋め込みの eHagaki に委譲**
-    しており（combine は pubkey 提供と `signEvent` のみ、publish と publish 先リレーは eHagaki 側）、
-    `ehagaki.embed` プロトコルに combine → eHagaki へリレーを渡す手段が無い。
+    しており（combine は `window.nostr` 経由で pubkey と `signEvent` を出すだけ、publish と
+    publish 先リレーは eHagaki 側）、Web Component にもリレーを渡す口が無い（eHagaki は
+    kind 10002 を自前で取りに行く。`getRelays` も呼ばない）。
     そのため `getRelays()` の write リレーは現状どこにも使われていない。
-    ユーザーの write リレーで publish させるには **eHagaki 側プロトコルの拡張提案**（例: `composer.setContext`
-    で `relays` を渡す）が必要。
+    ユーザーの write リレーで publish させるには **上流への要望**か、`configureHostOwned`
+    （`EHAGAKI_WEB_COMPONENT.md`。publish もアップロードも自前になるので採っていない）が要る。
   - 補足: NIP-65（kind 10002）の自分のリレーリストをリレーから取得する案も併用検討可。
 
 
@@ -95,12 +101,12 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
     `user/<npub>` に割れたままで、これは同じ人のページが 2 つの経路を持つ以上そのまま。
 
 - [ ] **「この人にメンションして投稿」**
-  - `composer.setContext` の `content` に `nostr:npub…` を渡せば実現できる
-    （ブリッジは対応済み・UI から未使用）。ユーザー詳細画面はその入口として自然。
+  - `setContext({ content: 'nostr:npub…' })` を呼べば実現できる（要素のメソッド。UI から未使用）。
+    ユーザー詳細画面はその入口として自然。
   - 足りないのは **compose へ文字列を持ち込む経路**。`parseRoute` は `compose` に param を
-    取らないので、小さな共有ストア（例: `composeContext.svelte.ts`）を挟み、`ComposeView` が
-    bridge の ready 後に流す形が素直（`ComposeView` は常時マウントで、bridge が立つ前に
-    `setContext` を呼んでも届かない）。
+    取らないので、小さな共有ストア（例: `composeContext.svelte.ts`）を挟むのが素直。
+    要素がまだ立っていないタイミングは `ComposeView` が面倒を見る（`pendingContext` に置いて
+    ready 後に流す。compose に入るまで要素は作られない）。
 
 - [ ] **投稿一覧が kind 1・30 件のまま**
   - リポスト（kind 6）も長文（kind 30023）も出ない。件数もホーム（50）と揃っていない。
