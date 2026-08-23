@@ -157,7 +157,11 @@ describe('shieldDexieRegistry', () => {
     const restore = shieldDexieRegistry(page);
     // What Dexie itself does on load: take what is there, or claim the slot.
     const mine = { semVer: '4.4.2' };
-    const shared = page[DEXIE] || (page[DEXIE] = mine);
+    let shared = page[DEXIE];
+    if (shared === undefined) {
+      page[DEXIE] = mine;
+      shared = mine;
+    }
     expect(shared).toBe(mine);
     restore();
   });
