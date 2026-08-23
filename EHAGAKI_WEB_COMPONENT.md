@@ -132,42 +132,93 @@ combine 側の対処は `shieldDexieRegistry`（`ehagakiComposer.ts`）。コン
 あるので、そちらを eHagaki と同じ 4.4.2 に寄せる（あるいは eHagaki に 4.4.4 へ上げてもらう）のが
 素直で、揃った時点でこの回避策は要らなくなる。
 
-## キーボードで投稿ボタンが隠れる（修正済み・実機確認は未）
+## キーボードで投稿ボタンが隠れる（暫定対応・真因は未確定）
 
 **実機で報告された不具合。** モバイルで本文をタップしてキーボードが出ても投稿フォームは縦長のままで、
 フッタの投稿ボタンがキーボードの下に潜ったままになる。
 
-最初の実装（`composerHeight`）は「host box の高さを、可視領域の下端で頭打ちにする」だった。
-これは **host box の上端が画面の上端と一致し続ける**ことを前提にしていて、combine では成り立たない:
+### 分かっていること 1: 修正前の式そのものは間違っていなかった
 
-- combine はページ全体がスクロールするレイアウト（`.app` は `min-height: 100dvh`、ヘッダとタブバーは
-  sticky）で、iOS Safari も Android Chrome も**キーボードを出すときにキャレットを見せようとして
-  ドキュメントをスクロールする**。host box はヘッダの下へ潜り、可視領域は下から削られるので、
-  両者の上端がずれる。ずれたぶん、高さをいくら詰めても要素の下端は画面の下端に揃わない。
-- しかもそのスクロールは resize の**後**に起きて、`visualViewport` のイベントを出さない
-  （`scroll` が出るのは visual viewport 自体の offset が動いたときだけ）。つまり計算に使う
-  `getBoundingClientRect().top` は古いままになる。
+最初は「ページがスクロールして host box の上端がずれるのが原因」と考えたが、**これは計算で否定された。**
+修正前の `composerHeight` を展開すると
 
-直し方は 2 つ:
+```
+要素の下端 = hostTop + min(hostHeight, offsetTop + vh - hostTop)
+           = min(hostTop + hostHeight, offsetTop + vh)   ≤ 可視領域の下端
+```
 
-- **キーボード中は要素を可視領域に fixed で貼る**（採用）。`position: fixed` は layout viewport 基準
-  なので `top` に `visualViewport.offsetTop`、高さに `visualViewport.height` を入れると可視領域に
-  ちょうど重なる。左右は host box のものを使う（`max-width: 640px` のセンタリングを引き継ぐ）。
-  結果として入力中はエディタがヘッダとタブバーの上に乗る全画面になり、フッタがキーボードの
-  真上に来る。z-index は 20（署名オーバーレイの 1000 より下 — エディタから署名へ進めなくなるため）。
-- 高さを 400px などに固定する。キーボードの高さは端末・言語・予測変換の有無で変わるので、
-  隠れないことを保証できるほど小さくすると平常時が窮屈になる。採らない。
+で、スクロールは `hostTop` と `visible` を同じだけ動かして相殺する。つまり**再計算さえ走れば、
+スクロールの有無にかかわらず要素の下端が可視領域を越えることはない**（`MIN_COMPOSER_HEIGHT` を
+下回る極端な場合を除く）。実際にキーボードを開いた条件を並べると、投稿ボタンが隠れる組み合わせは
+**「再計算が走っていない（キーボード前の高さのまま）」だけ**だった。
 
-キーボードの判定は「layout viewport（`documentElement.clientHeight`）より visual viewport が
+報告が「縦長の**まま**」だったことも、高さが一度も更新されていないことを示している。
+つまり真因は式ではなく「`applyHeight` が呼ばれていない、または呼ばれても効いていない」側にある。
+そこまでは詰められたが、**どちらなのかは実機の数字を見ないと確定しない。**
+
+### 分かっていること 2: eHagaki 自身のキーボード補正が Web Component 版では死んでいる
+
+配布バンドルを読んだ結果。`layoutMode: "container"`（Web Component 版はこれ）のとき、eHagaki は
+**自分でキーボードを検出して自分の中身を持ち上げる**処理を持っている。host box の矩形のうち
+キーボードに隠れている量を出し（`min(rect.height, max(0, rect.bottom - 可視領域の下端))`）、
+`--main-content-keyboard-adjustment` などの CSS 変数に流す。`visualViewport` の `resize`/`scroll`、
+`focusin`/`focusout`、`window` の `scroll` まで購読していて、作り自体はしっかりしている。
+
+ところがその適用は `F6()` というフォーカス判定でゲートされていて、その中身が
+
+```js
+const TM = "[data-post-editor-root]";
+const e = document.activeElement;
+if (e?.closest(TM)) return true;
+if (e && e !== document.body && e !== document.documentElement) return false;  // ← ここに落ちる
+```
+
+`[data-post-editor-root]` は**シャドウルートの中**にある。フォーカスがシャドウ内にあるとき
+`document.activeElement` は retarget されてホスト要素（`<ehagaki-composer>`）を返し、その `closest()` は
+light DOM の祖先しか辿らないので一致しない。`getSelection()` のフォールバックもシャドウ境界を越えない。
+**結果 `F6()` は常に false になり、`--keyboard-height` も `--footer-bottom` も 0 のまま**になる。
+iframe 時代（シャドウ無し・別ドキュメント）では成立していた判定が、Web Component 版で成立しなくなっている。
+
+これは「エディタ側が何もしてくれない」ことの説明であって、combine 側の高さが更新されなかった理由の
+説明ではない。**独立した 2 つ目の要因**として数え、上流に投げる（下記「上流への要望」）。
+
+### 対応: キーボード中は可視領域に貼る（`composerBox`）
+
+真因が「更新されていない」側にある以上、式を薄く直しても裏付けが無い。より外れにくい形として、
+キーボードが開いているあいだは要素を**可視領域そのものに fixed で貼る**ことにした。
+`position: fixed` は layout viewport 基準なので `top` に `visualViewport.offsetTop`、高さに
+`visualViewport.height` を入れると可視領域にちょうど重なる。左右は host box のものを使う
+（`max-width: 640px` のセンタリングを引き継ぐ）。入力中はエディタがヘッダとタブバーの上に乗る
+全画面になり、フッタがキーボードの真上に来る。z-index は 20（署名オーバーレイの 1000 より下 —
+エディタから署名へ進めなくなるため）。
+
+貼り付けには副次的な利点がある。host box の下端が可視領域の下端に一致するので、上記の eHagaki 側の
+補正量（隠れている量）が 0 になる。**上流が `F6()` を直しても二重に持ち上がらない。**
+
+判定は「layout viewport（`documentElement.clientHeight`）より visual viewport が
 `KEYBOARD_THRESHOLD`=120px 以上短い」。ブラウザ UI や iOS のアクセサリバーが削るのは数十 px、
 キーボードは画面の 1/3 以上で、あいだは十分に空いている。ピンチズームも visual viewport を
-縮めるので `scale` で弾く（ズーム中に貼り付けるとパンと喧嘩する）。
+縮めるので `scale` で弾く（ズーム中に貼り付けるとパンと喧嘩する）。閾値以下では従来どおり flow の
+まま可視領域の下端で頭打ちにする。貼り付け中は `MIN_COMPOSER_HEIGHT` を効かせない: 可視領域より
+高くしたらフッタがまた潜るため。
 
-閾値以下のときは従来どおり flow のまま可視領域の下端で頭打ちにする（アクセサリバー用）。
-貼り付け中は `MIN_COMPOSER_HEIGHT` を効かせない: 可視領域より高くしたらフッタがまた潜るため。
+**ただしこの対応は、修正前と同じ購読（`ResizeObserver` と `visualViewport` のイベント。加えて
+`window` の `scroll`）の上に乗っている。** もし真因が「イベントが来ていない」側だったなら、
+この対応も同じように効かない。だから次は実機の数字を取る。
 
-購読するのは host box の `ResizeObserver`・`visualViewport` の `resize`/`scroll`・**`window` の
-`scroll`**。最後のひとつが上記「イベントの出ないスクロール」を拾う。
+### 実機で確かめる: `viewport-probe.html`
+
+リポジトリ直下の `viewport-probe.html`（dev サーバ専用。`public/` に無いのでビルドには入らない）。
+`npm run dev -- --host` してスマホから `/viewport-probe.html` を開く。compose 画面と同じ骨格
+（100dvh の縦 flex・sticky のヘッダとタブバー・余りの host box・シャドウルート・下端のフッタ）を
+再現してあり、編集領域をタップすると次が出る:
+
+- `visualViewport` の height / offsetTop / scale、`innerHeight`、`clientHeight`、`scrollY`、host box と要素の矩形
+- **各イベントの発火回数**（`vvResize` / `vvScroll` / `winScroll` / `resizeObs`）。0 のままなら真因は「来ていない」側
+- フッタが可視領域を越えているかの判定
+- `document.activeElement` と `shadowRoot.activeElement`、および上流の `F6()` を再現した値
+  （false が出れば上記 2 の裏付けになる）
+- 「何もしない / flow（修正前）/ pinned（修正後）」の切り替え。どれで投稿ボタンが見えるかを直接見る
 
 ## 残っている宿題
 
@@ -179,6 +230,16 @@ combine 側の対処は `shieldDexieRegistry`（`ehagakiComposer.ts`）。コン
   エディタへ自動フォーカスする」は移行しても解決しない。
 
 ## 上流への要望（本命）
+
+**`F6()` のフォーカス判定をシャドウルート対応にしてもらう。** Web Component 版では
+`document.activeElement` が retarget されてホスト要素を返すため、`[data-post-editor-root]` に
+一致せず、eHagaki 自身のキーボード補正（`--keyboard-height` / `--footer-bottom` /
+`--main-content-keyboard-adjustment`）が一度も適用されない（詳細は上記
+「キーボードで投稿ボタンが隠れる」）。`domRoot`（`mountApp` が `attachShadow` で作り、設定に
+持っている）の `activeElement` を見る、あるいは `document.activeElement` から
+`shadowRoot?.activeElement` を辿って掘るだけで済むはずで、差分は小さい。埋め込み側が
+高さをどう渡していても効く土台なので、こちらが本筋。
+
 
 **NIP-07 の自動ログインを opt-in で足してもらう**のがいちばん筋が良い。
 `authenticateWithNip07()` は既にあり、いまログインダイアログのボタンからしか呼ばれていない。
