@@ -35,17 +35,15 @@ export const EHAGAKI_TAG = 'ehagaki-composer';
  */
 export const EHAGAKI_STORAGE_PREFIX = 'ehagaki.web-component.v1:';
 
-/** Events the element dispatches. All of them bubble and are composed. */
-export const READY_EVENT = 'ehagaki-ready';
+/**
+ * Events combine listens for. They bubble and are composed, so a listener on
+ * the host element sees them. The element dispatches `ehagaki-ready` as well,
+ * which is not here: `whenReady()` says the same thing and can be awaited in
+ * the order the rest of the setup runs in.
+ */
 export const POST_SUCCESS_EVENT = 'ehagaki-post-success';
 export const POST_ERROR_EVENT = 'ehagaki-post-error';
 export const INIT_ERROR_EVENT = 'ehagaki-initialization-error';
-
-export interface PostSuccessDetail {
-  eventId?: string;
-  replyToEventId?: string;
-  quotedEventIds?: string[];
-}
 
 /** Note there is no `message`: the iframe protocol carried one, this does not. */
 export interface PostErrorDetail {

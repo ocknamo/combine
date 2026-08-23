@@ -101,12 +101,12 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
     `user/<npub>` に割れたままで、これは同じ人のページが 2 つの経路を持つ以上そのまま。
 
 - [ ] **「この人にメンションして投稿」**
-  - `composer.setContext` の `content` に `nostr:npub…` を渡せば実現できる
-    （ブリッジは対応済み・UI から未使用）。ユーザー詳細画面はその入口として自然。
+  - `setContext({ content: 'nostr:npub…' })` を呼べば実現できる（要素のメソッド。UI から未使用）。
+    ユーザー詳細画面はその入口として自然。
   - 足りないのは **compose へ文字列を持ち込む経路**。`parseRoute` は `compose` に param を
-    取らないので、小さな共有ストア（例: `composeContext.svelte.ts`）を挟み、`ComposeView` が
-    bridge の ready 後に流す形が素直（`ComposeView` は常時マウントで、bridge が立つ前に
-    `setContext` を呼んでも届かない）。
+    取らないので、小さな共有ストア（例: `composeContext.svelte.ts`）を挟むのが素直。
+    要素がまだ立っていないタイミングは `ComposeView` が面倒を見る（`pendingContext` に置いて
+    ready 後に流す。compose に入るまで要素は作られない）。
 
 - [ ] **投稿一覧が kind 1・30 件のまま**
   - リポスト（kind 6）も長文（kind 30023）も出ない。件数もホーム（50）と揃っていない。

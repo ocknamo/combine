@@ -3,9 +3,10 @@
  *
  * nosskey-iframe is built to be published this way: its client is a NIP-07
  * shaped façade the parent page assigns to `window.nostr` (see the package
- * README). combine keeps that assignment in one place because embeds that share
- * the page — an `<ehagaki-composer>` Web Component, for instance — have no other
- * way to reach a signer: they look for a NIP-07 provider in their own realm.
+ * README). combine needs that assignment because this is the only way an embed
+ * sharing the page can reach a signer — it looks for a NIP-07 provider in its
+ * own realm. The eHagaki composer is one: it signs through here and nothing
+ * else (see `ehagakiComposer.ts`).
  *
  * The private key still never enters this realm. Every call crosses into
  * nosskey.app, which gates the sensitive ones behind its own consent dialog.
