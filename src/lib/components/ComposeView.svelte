@@ -14,15 +14,19 @@ import {
   clearEhagakiStorage,
   composerHeight,
   createComposer,
+  describeFailure,
   EHAGAKI_SETTINGS,
   EHAGAKI_SITE_URL,
   type EhagakiComposerElement,
   INIT_ERROR_EVENT,
+  type InitErrorDetail,
+  isDisconnected,
   loadEhagakiComposer,
   POST_ERROR_EVENT,
   POST_SUCCESS_EVENT,
   type PostErrorDetail,
   postErrorMessage,
+  shieldDexieRegistry,
 } from '../ehagakiComposer';
 import { router } from '../router.svelte';
 import { toast } from '../toast.svelte';
@@ -32,9 +36,13 @@ let { active = false }: { active?: boolean } = $props();
 
 let hostEl = $state<HTMLDivElement | null>(null);
 let status = $state<'idle' | 'loading' | 'ready' | 'failed'>('idle');
+/** Why the last attempt failed, shown next to the error. */
+let failure = $state<string | null>(null);
 
 let composer: EhagakiComposerElement | null = null;
 let mounting = false;
+/** Guards the one automatic retry a torn-down mount gets. */
+let remounted = false;
 /** The account the live element was built for. */
 let builtFor: string | null = null;
 /** Set while the element is still coming up, and applied once it is ready. */
@@ -48,6 +56,9 @@ async function mountComposer(): Promise<void> {
   if (composer || mounting || !hostEl) return;
   mounting = true;
   status = 'loading';
+  // The editor brings its own Dexie, which refuses to start next to the one
+  // nostr-cache brought. Hide the page's registration until the editor is up.
+  const restoreDexie = shieldDexieRegistry();
   try {
     await loadEhagakiComposer();
     // The teardown path runs while this is in flight if the user logs out.
@@ -66,14 +77,34 @@ async function mountComposer(): Promise<void> {
       pendingContext = null;
       await element.setContext(context);
     }
-  } catch {
-    // Every failure here is the same to the user: no editor. The credit line
-    // below links to eHagaki itself, which is the only other way to post.
+  } catch (err) {
+    // Worth the console line: the message on screen has to stay short, and this
+    // is the only place the stack survives.
+    console.error('[combine] eHagaki composer failed to mount:', err);
     teardown();
+    // A torn-down mount is not a failed editor — build the replacement instead
+    // of putting an error where the editor should be. Once only: if it keeps
+    // being pulled out from under us, the error is the honest answer.
+    if (isDisconnected(err) && !remounted) {
+      remounted = true;
+      mounting = false;
+      void mountComposer();
+      return;
+    }
+    failure = describeFailure(err);
     status = 'failed';
   } finally {
+    restoreDexie();
     mounting = false;
   }
+}
+
+/** Try again after a failure — a dead tab until reload is no way to leave it. */
+function retry(): void {
+  failure = null;
+  status = 'idle';
+  remounted = false;
+  void mountComposer();
 }
 
 function teardown(): void {
@@ -134,8 +165,11 @@ $effect(() => {
     const message = postErrorMessage(detail?.code ?? 'post_failed');
     if (message) toast.show(message, 'error');
   };
-  const onInitError = () => {
+  const onInitError = (event: Event) => {
+    const detail = (event as CustomEvent<InitErrorDetail>).detail;
+    console.error('[combine] eHagaki composer reported an init error:', detail);
     teardown();
+    failure = [detail?.code, detail?.message].filter(Boolean).join(': ') || 'initialization_failed';
     status = 'failed';
   };
 
@@ -222,11 +256,17 @@ function setContext(context: { reply: string | null; quotes: string[] }): void {
     {#if status === 'loading'}
       <p class="state">エディタを読み込み中…</p>
     {:else if status === 'failed'}
-      <p class="state">
-        エディタを読み込めませんでした。
-        <a href={EHAGAKI_SITE_URL} target="_blank" rel="noreferrer">eHagaki</a>
-        に接続できない可能性があります。
-      </p>
+      <div class="state" role="alert">
+        <p>
+          エディタを読み込めませんでした。
+          <a href={EHAGAKI_SITE_URL} target="_blank" rel="noreferrer">eHagaki</a>
+          で投稿することもできます。
+        </p>
+        {#if failure}
+          <p class="reason">{failure}</p>
+        {/if}
+        <button onclick={retry}>再試行</button>
+      </div>
     {/if}
 
     <!-- The element is appended here by mountComposer; nothing else goes in. -->
@@ -314,6 +354,19 @@ function setContext(context: { reply: string | null; quotes: string[] }): void {
     padding: 0.6rem 1rem;
     color: var(--text-muted);
     font-size: 0.9rem;
+  }
+
+  .state p {
+    margin: 0 0 0.5rem;
+  }
+
+  /* The element's own error name and message, verbatim: it is what makes a
+     report actionable, and no paraphrase of it would be. */
+  .reason {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--danger);
+    overflow-wrap: anywhere;
   }
 
   .credit {

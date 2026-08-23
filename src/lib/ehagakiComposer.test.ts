@@ -2,13 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   clearEhagakiStorage,
   composerHeight,
+  describeFailure,
   EHAGAKI_ASSET_BASE,
   EHAGAKI_ORIGIN,
   EHAGAKI_SCRIPT_URL,
   EHAGAKI_SETTINGS,
   EHAGAKI_STORAGE_PREFIX,
+  isDisconnected,
   MIN_COMPOSER_HEIGHT,
   postErrorMessage,
+  shieldDexieRegistry,
 } from './ehagakiComposer';
 
 /** Enough of the Storage interface for {@link clearEhagakiStorage}. */
@@ -111,5 +114,76 @@ describe('composerHeight', () => {
         viewport: { offsetTop: 0, height: 100 },
       })
     ).toBe(MIN_COMPOSER_HEIGHT);
+  });
+});
+
+describe('describeFailure', () => {
+  it("uses the element's error name, which carries its code", () => {
+    const error = new Error('Only one ehagaki-composer can be connected in a document.');
+    error.name = 'multiple_instances_unsupported';
+    expect(describeFailure(error)).toContain('multiple_instances_unsupported');
+  });
+
+  it('leaves a plain error as its message', () => {
+    expect(describeFailure(new TypeError('Failed to fetch dynamically imported module'))).toBe(
+      'TypeError: Failed to fetch dynamically imported module'
+    );
+  });
+
+  it('says something for a thrown non-error', () => {
+    expect(describeFailure('boom')).toBe('boom');
+  });
+});
+
+describe('isDisconnected', () => {
+  it('recognises the rejection whenReady gives a torn-down element', () => {
+    const error = new Error('Component was disconnected before it became ready.');
+    error.name = 'disconnected';
+    expect(isDisconnected(error)).toBe(true);
+  });
+
+  it('does not mistake another failure for it', () => {
+    const error = new Error('eHagaki Composer could not be initialized.');
+    error.name = 'initialization_failed';
+    expect(isDisconnected(error)).toBe(false);
+  });
+});
+
+describe('shieldDexieRegistry', () => {
+  const DEXIE = Symbol.for('Dexie');
+
+  it('reads empty while shielded, so a second copy registers instead of throwing', () => {
+    const page: { [key: symbol]: unknown } = { [DEXIE]: { semVer: '4.4.4' } };
+    const restore = shieldDexieRegistry(page);
+    // What Dexie itself does on load: take what is there, or claim the slot.
+    const mine = { semVer: '4.4.2' };
+    const shared = page[DEXIE] || (page[DEXIE] = mine);
+    expect(shared).toBe(mine);
+    restore();
+  });
+
+  it('gives the slot back to whoever held it', () => {
+    const relay = { semVer: '4.4.4' };
+    const page: { [key: symbol]: unknown } = { [DEXIE]: relay };
+    const restore = shieldDexieRegistry(page);
+    page[DEXIE] = { semVer: '4.4.2' };
+    restore();
+    expect(page[DEXIE]).toBe(relay);
+  });
+
+  it('keeps the first claim made while shielded when the slot started empty', () => {
+    const page: { [key: symbol]: unknown } = {};
+    const restore = shieldDexieRegistry(page);
+    const first = { semVer: '4.4.4' };
+    page[DEXIE] = first;
+    page[DEXIE] = { semVer: '4.4.2' };
+    restore();
+    expect(page[DEXIE]).toBe(first);
+  });
+
+  it('leaves an empty slot empty when nobody claims it', () => {
+    const page: { [key: symbol]: unknown } = {};
+    shieldDexieRegistry(page)();
+    expect(DEXIE in page).toBe(false);
   });
 });
