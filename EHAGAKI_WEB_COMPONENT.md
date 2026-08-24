@@ -9,8 +9,12 @@ combine の投稿エディタは eHagaki の埋め込み。iframe（`ehagaki.emb
 ## 判断
 
 初回のログインに **エディタ内で 1 タップ必要になる**（下記「認証」）。この 1 点だけが後退で、
-それ以外はすべて前進なので、1 タップを許容して移行した。上流に NIP-07 の自動ログインが入れば
-その 1 タップも消える（下記「上流への要望」）。
+それ以外はすべて前進なので、1 タップを許容して移行した。
+
+**その 1 タップは消えた。** 要望に出していた NIP-07 の自動ログインが上流に入り
+（[Lokuyow/ehagaki#188](https://github.com/Lokuyow/ehagaki/pull/188)）、`auto-login` 属性を
+付けるだけで済むようになった（下記「認証」）。移行時に払った唯一の代償がこれで無くなり、
+判断としては前進だけが残った。
 
 得たもの:
 
@@ -51,6 +55,8 @@ combine の投稿エディタは eHagaki の埋め込み。iframe（`ehagaki.emb
   pubkey が変わったら要素を作り直す。ログアウト時は `ehagaki.web-component.v1:` を全消しする
   （下書きと「ログイン中の相手」が combine のオリジンに残るため。同じ端末の次の人に
   前の人の書きかけが見えてはいけない）。代償として eHagaki 側の設定も消える。
+- **認証**: 生成時に `auto-login` 属性を付ける。eHagaki が保存済みアカウントを復元できないとき、
+  combine の `window.nostr` シムでそのままログインする（下記「認証」）。
 - **エラー**: `ehagaki-post-error` の detail は `{ code }` だけで、iframe 時代にあった `message` が無い。
   日本語メッセージは combine 側で持つ（`postErrorMessage`）。`empty_content` は eHagaki 自身が
   UI で言うのでトーストは出さない。
@@ -62,21 +68,42 @@ iframe を直接叩いていて `window.nostr` を生やしていなかったの
 （`src/lib/nip07.ts`）。eHagaki が実際に呼ぶのは `getPublicKey` と `signEvent` の 2 つだけで、
 `getRelays` は使わず write リレーは kind 10002 を自前で取りに行く。
 
-**シムがあっても初回の 1 タップは消えない。** eHagaki は「ログイン済みかどうか」を自分の storage で
-判断していて、`window.nostr` は「誰か」しか答えないため。
+### 自動ログイン（`auto-login`）
 
-- 起動時の復元（`runManagedAuthRestore`）は保存済みアカウントがある場合にしか走らない。
-  nip07 経路は `waitForExtension()` → `authenticate()`（= `window.nostr.getPublicKey()`）→
-  `isExpectedAccount` の照合、という順。
-- 保存が無い初回はこの経路に入らず、NIP-07 ログインは `handleNip07Login`（ログインダイアログの
-  ボタン）からしか始まらない。`window.nostr` があれば勝手に繋ぐ経路は無い。
-- 2 回目以降は無言。タップの結果が combine のオリジンに残り、シムはキャッシュ済みの pubkey を
+**かつては、シムがあっても初回に 1 タップ必要だった。** eHagaki は「ログイン済みかどうか」を
+自分の storage で判断していて、`window.nostr` は「誰か」しか答えない。保存が無い初回は
+起動時の復元経路に入らず、NIP-07 ログインはログインダイアログのボタンからしか始まらなかった。
+
+上流に **`auto-login` 属性**が入って（[#188](https://github.com/Lokuyow/ehagaki/pull/188)、
+要望していたとおりの opt-in）、そこが埋まった。保存済みアカウントをすべて評価しても未認証だった
+場合に限り、ホストの `window.nostr` で NIP-07 ログインを試す。combine は
+`createComposer()` で常に付けている。
+
+- **既定は無効**で、それが正しい。NIP-07 拡張はたいてい `getPublicKey()` で確認ダイアログを出すので、
+  無条件だと拡張を入れている人が埋め込み先を開いただけでプロンプトを踏む。**combine はこの属性の
+  想定ケースそのもの**で、シムはログイン済みのセッションから答え、要素はそのアカウントのためにしか
+  作られない（`ComposeView` は `auth.pubkey` が無ければ組み立てない）。だからプロンプトは出ない。
+- **接続前に付ける必要がある**。`asset-base` と同じく mount 時に読まれるので、
+  `createComposer()` が要素を作った直後、`appendChild` の前に置いている。
+- **属性で付けている**（`element.autoLogin = true` ではなく）。GitHub Pages のキャッシュで古い
+  バンドルが来ても、知らない属性は無視されるだけで済む。壊れずに 1 タップに戻るだけ。
+- **`whenReady()` の意味が変わる**。この属性がある Full 版では、認証後（あるいは失敗後のゲスト）の
+  bootstrap まで待ってから解決する。準備完了は少し遅くなるが、その代わり ready な要素は
+  「誰として投稿するか決まっている要素」になる。
+- 失敗しても静かにゲストで起動する（拡張未検出・ユーザー拒否など）。自動試行は 1 mount につき 1 回。
+
+残る挙動:
+
+- 2 回目以降は元から無言だった。結果が combine のオリジンに残り、シムはキャッシュ済みの pubkey を
   返すので Nosskey のパスキー確認も出ない。
-- combine 側でアカウントを切り替えると `isExpectedAccount` の照合に落ちる。要素を作り直すことで
-  拾い直す（実装済み）。
+- combine 側でアカウントを切り替えると保存済みアカウントとの照合（`isExpectedAccount`）に落ちる。
+  要素を作り直して拾い直すのは変わらないが、**作り直したあとが無言になった**：以前はそこで
+  ログインダイアログが出ていて、切り替えのたびに 1 タップ要った。ログアウト時に
+  `ehagaki.web-component.v1:` を消したあとの再ログインも同じ。
 
-`getPublicKey` をキャッシュから返すのはこのためでもある。eHagaki は復元時に `authenticate()` を
-呼ぶので、Nosskey の iframe へ往復させると起動のたびに不意のパスキー確認が出かねない。
+`getPublicKey` をキャッシュから返すのはこのためでもある。eHagaki は復元時にも自動ログイン時にも
+`authenticate()` を呼ぶので、Nosskey の iframe へ往復させると起動のたびに不意のパスキー確認が
+出かねない。
 
 ## 信頼境界
 
@@ -276,7 +303,8 @@ kb top 49.0 h 322.0 bottom 371.0 w 411
 ## 残っている宿題
 
 - [ ] **実機確認**。モバイルのキーボード挙動（`composerHeight` の visualViewport 補正）と
-  動画圧縮を iOS Safari / Android Chrome で通す。
+  動画圧縮を iOS Safari / Android Chrome で通す。`auto-login` も実機で無言に繋がるかを見る
+  （手元では確認していない。理屈の上ではシムがキャッシュから答えるのでプロンプトは無い）。
 - [ ] **Dexie のバージョンを上流で揃える**（上記）。揃えば `shieldDexieRegistry` は削除できる。
 - [ ] **データ移行は無い**。iframe 時代の下書き・設定は引き継がれない（別オリジンの storage）。
 - [ ] `composer.focus` 相当は Web Component 版にも無い。TODO の「投稿画面を開いたときに
@@ -296,19 +324,16 @@ eHagaki 自身のキーボード補正が一度も適用されない（詳細は
 `visualViewport` が縮まなくなるのは想定外の挙動になる）。
 
 
-**NIP-07 の自動ログインを opt-in で足してもらう**のがいちばん筋が良い。
-`authenticateWithNip07()` は既にあり、いまログインダイアログのボタンからしか呼ばれていない。
-「保存済みアカウントが無く、かつ `window.nostr` がある起動時にそれを呼ぶ」だけなので差分が小さい。
+### NIP-07 の自動ログイン（**入った**）
 
-opt-in にしてもらう必要はある。NIP-07 拡張は普通 `getPublicKey()` で確認ダイアログを出すので、
-無条件だと拡張を入れている人が他の埋め込み先でページを開いただけでプロンプトを踏む。
-`auto-login` 属性か `setSettings({ autoLoginNip07: true })` のような明示的なスイッチが要る。
+**要望していた opt-in がそのままの形で実装された**
+（[#188](https://github.com/Lokuyow/ehagaki/pull/188)）。`auto-login` 属性で、保存済みアカウントを
+どれも復元できなかったときだけホストの `window.nostr` を使う。既定は無効、Full 配布専用。
+combine 側は属性を 1 つ足しただけで初回 1 タップが消えた（上記「認証」）。
 
-代案として signer 提供 API（例: `configureSigner({ pubkeyHex, signEvent })` を接続前に渡し、
-渡された時点でログイン済みとして扱う）もある。iframe 版の parent-client 連携の Web Component 版に
-あたるもので、`window.nostr` をページグローバルに生やさずに済む点が優れているが、公開 API が
-1 本増えるぶん上流の負担は大きい。ドキュメントに「Web Component 版専用の signer
-callback/provider API はありません」と明記されているので、どちらも機能要望として出す話になる。
+代案として挙げていた signer 提供 API（`configureSigner({ pubkeyHex, signEvent })` を接続前に渡す形）は
+出さないままでよい。`window.nostr` をページグローバルに生やさずに済む点は今も優れているが、
+combine は Nosskey のシムを既に生やしていて他に得るものが無く、上流には公開 API が 1 本増える。
 
 ## host-owned mode（採らない）
 

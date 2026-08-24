@@ -8,6 +8,10 @@
 ※ Web Component 版（`<ehagaki-composer>`）への移行は**対応済み**。経緯・実装・宿題は
 `EHAGAKI_WEB_COMPONENT.md` を参照。以下はその上で残っているもの。
 
+※ **eHagaki 側の初回ログイン 1 タップは解消済み**。要望に出していた NIP-07 の自動ログインが
+上流に入り（[Lokuyow/ehagaki#188](https://github.com/Lokuyow/ehagaki/pull/188)）、combine は
+`auto-login` 属性を付けて対応した。アカウント切替・ログアウト後の再ログインも無言になる。
+
 - [ ] **実機で通す**
   - キーボードで投稿ボタンが隠れる件は**原因を確定させて修正し、Android Chrome の実機で確認済み**
     （eHagaki が `navigator.virtualKeyboard.overlaysContent` を立てるので `visualViewport` が
@@ -29,12 +33,6 @@
     読み込んだ方が throw する。いまは combine 側で回避している（`shieldDexieRegistry`。
     経緯は `EHAGAKI_WEB_COMPONENT.md`）。
   - nostr-cache 側を 4.4.2 に寄せれば回避策を消せる。上流の実装依存が減る。
-
-- [ ] **eHagaki 側の初回ログイン 1 タップを消す**
-  - 上流に **NIP-07 の自動ログイン（opt-in）** を足してもらうのが本命。差分は小さい
-    （`authenticateWithNip07()` は既にあり、ログインダイアログのボタンからしか呼ばれていない）。
-  - combine 側で先回りできることは無い。`window.nostr` シムは入っていて、それでも消えない
-    （eHagaki は「ログイン済みか」を自分の storage で判断するため）。
 
 - [ ] **投稿画面を開いたときにエディタへ自動フォーカスする**
   - 公開 API としては依然として無い（`composer.focus` 相当は Web Component 版にも無い）。

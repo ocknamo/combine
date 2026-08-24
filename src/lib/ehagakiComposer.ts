@@ -29,6 +29,24 @@ export const EHAGAKI_SCRIPT_URL = `${EHAGAKI_ASSET_BASE}ehagaki-composer.js`;
 export const EHAGAKI_TAG = 'ehagaki-composer';
 
 /**
+ * Opts the element into logging in through the host's `window.nostr` when its
+ * own storage has no account it can restore — what used to cost the user one
+ * tap in the editor's login dialog on the first visit, and again after every
+ * account switch and logout.
+ *
+ * Off by default upstream, and rightly so: a NIP-07 extension usually prompts
+ * on `getPublicKey()`, so a page that merely embeds the editor would make
+ * everyone with an extension answer a dialog. combine is the case it was added
+ * for — the shim it publishes answers from a session that is already signed in
+ * (`nip07.ts`), and the composer is only ever built for that account.
+ *
+ * Set as an attribute rather than through the `autoLogin` property so an older
+ * cached bundle simply ignores an attribute it does not observe, leaving the
+ * tap where it was.
+ */
+export const EHAGAKI_AUTO_LOGIN_ATTRIBUTE = 'auto-login';
+
+/**
  * Prefix eHagaki namespaces its `localStorage` keys under, on the host origin.
  * Its IndexedDB is `eHagakiDB`, which does not collide with combine's
  * `combine-timeline` (see `nostrCache.ts`).
@@ -99,7 +117,11 @@ export interface ComposerSettings {
 
 export interface EhagakiComposerElement extends HTMLElement {
   assetBase: string | null;
-  /** Resolves once mounted; rejects on a failed init or an early disconnect. */
+  /**
+   * Resolves once mounted; rejects on a failed init or an early disconnect.
+   * With `auto-login` set this also waits for the login attempt to settle, so
+   * a ready element is one that knows who it is posting as.
+   */
   whenReady(): Promise<void>;
   /** Applied atomically: an unknown or invalid key rejects the whole payload. */
   setSettings(settings: ComposerSettings): Promise<readonly string[]>;
@@ -167,13 +189,18 @@ export function loadEhagakiComposer(): Promise<void> {
 }
 
 /**
- * Build the element. `assetBase` has to be set before it is connected: the
- * Web Component entry opts out of the standalone build's "assets sit next to
- * the document" default, which would look for them on combine's origin.
+ * Build the element. Both `assetBase` and `auto-login` have to be set before it
+ * is connected, because the element reads them when it mounts: the Web
+ * Component entry opts out of the standalone build's "assets sit next to the
+ * document" default, which would look for them on combine's origin, and the
+ * login attempt happens as part of that mount.
  */
-export function createComposer(): EhagakiComposerElement {
-  const element = document.createElement(EHAGAKI_TAG) as EhagakiComposerElement;
+export function createComposer(
+  doc: Pick<Document, 'createElement'> = document
+): EhagakiComposerElement {
+  const element = doc.createElement(EHAGAKI_TAG) as EhagakiComposerElement;
   element.assetBase = EHAGAKI_ASSET_BASE;
+  element.setAttribute(EHAGAKI_AUTO_LOGIN_ATTRIBUTE, '');
   return element;
 }
 
