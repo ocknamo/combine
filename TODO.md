@@ -9,10 +9,10 @@
 `EHAGAKI_WEB_COMPONENT.md` を参照。以下はその上で残っているもの。
 
 - [ ] **実機で通す**
-  - キーボードで投稿ボタンが隠れる件は**原因を確定させて修正済み**（eHagaki が
-    `navigator.virtualKeyboard.overlaysContent` を立てるので `visualViewport` が縮まなくなっていた。
-    経緯は `EHAGAKI_WEB_COMPONENT.md`）。検証は偽の `geometrychange` までなので、
-    **実機の Android Chrome / iOS Safari での確認が残っている。**
+  - キーボードで投稿ボタンが隠れる件は**原因を確定させて修正し、Android Chrome の実機で確認済み**
+    （eHagaki が `navigator.virtualKeyboard.overlaysContent` を立てるので `visualViewport` が
+    縮まなくなっていた。経緯は `EHAGAKI_WEB_COMPONENT.md`）。**iOS Safari は未確認**
+    （そちらは従来どおり `visualViewport` の経路で、退行していないかを見る）。
   - 動画圧縮も未確認。クロスオリジンの worker は上流が対応済み（blob URL 経由）だが、
     実機で通したことはまだ無い。
 

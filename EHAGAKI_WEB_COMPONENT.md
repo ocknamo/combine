@@ -188,9 +188,10 @@ combine の高さ計算は `visualViewport` だけを見ていた。縮まない
 立てているもので、上流が `F6()` を直せば必要になる。読むだけにしておけば衝突しない
 （そのとき eHagaki が計算する「隠れている量」は、こちらが下端を合わせるので 0 になる）。
 
-Playwright で実物の要素に対して確認済み（`overlaysContent: true` / `visualViewport` は 844 のまま /
-キーボード矩形 top 544 → 要素の下端が 735 から **544** に移動）。ただし**偽の
-`geometrychange` での検証**なので、実機での確認は宿題に残す。
+**実機の Android Chrome で確認済み**（報告者の環境）。手元では Playwright で実物の要素に対して
+測ってあり（`overlaysContent: true` / `visualViewport` は 844 のまま / キーボード矩形 top 544 →
+要素の下端が 735 から **544** に移動）、こちらは偽の `geometrychange` による検証。
+**iOS Safari は未確認**で、宿題に残る（そちらは従来どおり `visualViewport` の経路）。
 
 ## 残っている宿題
 

@@ -35,18 +35,6 @@ import LoginGate from './LoginGate.svelte';
 
 let { active = false }: { active?: boolean } = $props();
 
-/**
- * デバッグ用の一時コード。**戻すこと。**
- *
- * ログインしていなくてもエディタを組み立てて表示する。デバッグ環境では
- * combine にログインできない事情があるため。
- *
- * eHagaki は「誰がログイン中か」を自分の storage で判断していて combine の
- * ログイン状態は見ていないので、表示と入力はこれだけで通る。投稿するには
- * エディタ自身のログインボタン（`window.nostr` シム経由）が要る。
- */
-const DEBUG_SKIP_LOGIN_GATE = true;
-
 let hostEl = $state<HTMLDivElement | null>(null);
 let status = $state<'idle' | 'loading' | 'ready' | 'failed'>('idle');
 /** Why the last attempt failed, shown next to the error. */
@@ -148,7 +136,7 @@ function applyHeight(): void {
 // for the previous account would go on posting as them.
 $effect(() => {
   const pubkey = auth.pubkey;
-  const shouldMount = active && (pubkey !== null || DEBUG_SKIP_LOGIN_GATE) && hostEl !== null;
+  const shouldMount = active && pubkey !== null && hostEl !== null;
   if (composer && builtFor !== pubkey) teardown();
   if (shouldMount) void mountComposer();
 });
@@ -251,7 +239,7 @@ function setContext(context: { reply: string | null; quotes: string[] }): void {
 </script>
 
 <section>
-  {#if !auth.loggedIn && !DEBUG_SKIP_LOGIN_GATE}
+  {#if !auth.loggedIn}
     <LoginGate message="投稿するにはログインが必要です。" />
   {:else}
     <details>
