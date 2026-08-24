@@ -29,6 +29,19 @@ export const EHAGAKI_SCRIPT_URL = `${EHAGAKI_ASSET_BASE}ehagaki-composer.js`;
 export const EHAGAKI_TAG = 'ehagaki-composer';
 
 /**
+ * Opts the element into logging in through the host's `window.nostr` when it has
+ * no account of its own to restore. Without it the user taps through eHagaki's
+ * login dialog on the first visit and after every account switch.
+ *
+ * Upstream leaves it off because `getPublicKey()` usually prompts; here it
+ * cannot — the shim answers from a session that is already signed in.
+ *
+ * An attribute rather than the `autoLogin` property, so an older cached bundle
+ * ignores it instead of breaking.
+ */
+export const EHAGAKI_AUTO_LOGIN_ATTRIBUTE = 'auto-login';
+
+/**
  * Prefix eHagaki namespaces its `localStorage` keys under, on the host origin.
  * Its IndexedDB is `eHagakiDB`, which does not collide with combine's
  * `combine-timeline` (see `nostrCache.ts`).
@@ -99,7 +112,10 @@ export interface ComposerSettings {
 
 export interface EhagakiComposerElement extends HTMLElement {
   assetBase: string | null;
-  /** Resolves once mounted; rejects on a failed init or an early disconnect. */
+  /**
+   * Resolves once mounted; rejects on a failed init or an early disconnect.
+   * With `auto-login`, not until the login attempt has settled.
+   */
   whenReady(): Promise<void>;
   /** Applied atomically: an unknown or invalid key rejects the whole payload. */
   setSettings(settings: ComposerSettings): Promise<readonly string[]>;
@@ -167,13 +183,17 @@ export function loadEhagakiComposer(): Promise<void> {
 }
 
 /**
- * Build the element. `assetBase` has to be set before it is connected: the
- * Web Component entry opts out of the standalone build's "assets sit next to
- * the document" default, which would look for them on combine's origin.
+ * Build the element. Both have to be set before it is connected: the Web
+ * Component entry opts out of the standalone build's "assets sit next to the
+ * document" default, which would look for them on combine's origin, and the
+ * login attempt happens as part of the mount.
  */
-export function createComposer(): EhagakiComposerElement {
-  const element = document.createElement(EHAGAKI_TAG) as EhagakiComposerElement;
+export function createComposer(
+  doc: Pick<Document, 'createElement'> = document
+): EhagakiComposerElement {
+  const element = doc.createElement(EHAGAKI_TAG) as EhagakiComposerElement;
   element.assetBase = EHAGAKI_ASSET_BASE;
+  element.setAttribute(EHAGAKI_AUTO_LOGIN_ATTRIBUTE, '');
   return element;
 }
 

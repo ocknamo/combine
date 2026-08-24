@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   clearEhagakiStorage,
   composerHeight,
+  createComposer,
   describeFailure,
   EHAGAKI_ASSET_BASE,
+  EHAGAKI_AUTO_LOGIN_ATTRIBUTE,
   EHAGAKI_ORIGIN,
   EHAGAKI_SCRIPT_URL,
   EHAGAKI_SETTINGS,
   EHAGAKI_STORAGE_PREFIX,
+  EHAGAKI_TAG,
   isDisconnected,
   MIN_COMPOSER_HEIGHT,
   postErrorMessage,
@@ -37,6 +40,42 @@ describe('bundle location', () => {
   it('points asset-base at the directory the script sits in', () => {
     expect(EHAGAKI_SCRIPT_URL.startsWith(EHAGAKI_ASSET_BASE)).toBe(true);
     expect(EHAGAKI_ASSET_BASE.endsWith('/')).toBe(true);
+  });
+});
+
+/** There is no DOM in this test environment. */
+function fakeDocument() {
+  const attributes = new Map<string, string>();
+  const element = {
+    assetBase: null as string | null,
+    setAttribute: (name: string, value: string) => void attributes.set(name, value),
+  };
+  const created: string[] = [];
+  return {
+    attributes,
+    element,
+    created,
+    doc: {
+      createElement: (tag: string) => {
+        created.push(tag);
+        return element as unknown as HTMLElement;
+      },
+    } as Pick<Document, 'createElement'>,
+  };
+}
+
+describe('createComposer', () => {
+  it('points the element at the bundle it was loaded from', () => {
+    const { doc, element, created } = fakeDocument();
+    createComposer(doc);
+    expect(created).toEqual([EHAGAKI_TAG]);
+    expect(element.assetBase).toBe(EHAGAKI_ASSET_BASE);
+  });
+
+  it('opts into NIP-07 auto-login', () => {
+    const { doc, attributes } = fakeDocument();
+    createComposer(doc);
+    expect(attributes.has(EHAGAKI_AUTO_LOGIN_ATTRIBUTE)).toBe(true);
   });
 });
 

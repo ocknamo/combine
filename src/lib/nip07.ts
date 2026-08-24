@@ -58,7 +58,7 @@ export function createNip07Provider(source: Nip07Source): Nip07Provider {
 
       // Signed out, so this can only be answered by logging in — which shows a
       // passkey dialog, and must therefore follow a tap. An embed's own login
-      // button qualifies; its silent session restore does not.
+      // button qualifies; a silent session restore or `auto-login` does not.
       if (!source.hasUserActivation()) {
         throw new Error('combine is not logged in');
       }
