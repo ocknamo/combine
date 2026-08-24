@@ -253,6 +253,29 @@ export function shieldDexieRegistry(target: SymbolBag = globalThis as SymbolBag)
 /** Never shrink the editor past this, however little room is left. */
 export const MIN_COMPOSER_HEIGHT = 240;
 
+/**
+ * The part of Android Chrome's VirtualKeyboard API combine reads.
+ *
+ * It only reports anything once the page has opted into "the keyboard overlays
+ * the content", and combine never asks for that — **eHagaki does**, from inside
+ * the composer (`navigator.virtualKeyboard.overlaysContent = true` on Android
+ * Chrome, at mount). That opt-in is also what stops the keyboard from shrinking
+ * `visualViewport`, so on that browser this is the only thing left that knows
+ * where the keyboard is. See `composerHeight`.
+ */
+export interface VirtualKeyboardLike {
+  /** The keyboard's rectangle in client coordinates; all zeros when hidden. */
+  boundingRect: DOMRectReadOnly;
+  addEventListener(type: 'geometrychange', listener: () => void): void;
+  removeEventListener(type: 'geometrychange', listener: () => void): void;
+}
+
+/** `navigator.virtualKeyboard`, which only Chromium has. */
+export function virtualKeyboard(): VirtualKeyboardLike | null {
+  const nav = navigator as Navigator & { virtualKeyboard?: VirtualKeyboardLike };
+  return nav.virtualKeyboard ?? null;
+}
+
 export interface ComposerHeightInput {
   /** Top of the host box, in layout-viewport coordinates. */
   hostTop: number;
@@ -260,6 +283,11 @@ export interface ComposerHeightInput {
   hostHeight: number;
   /** `visualViewport`'s offset and height, or `null` where it is missing. */
   viewport: { offsetTop: number; height: number } | null;
+  /**
+   * `navigator.virtualKeyboard.boundingRect`, in the same client coordinates as
+   * the host box. A zero height means "no keyboard, or nothing is telling us".
+   */
+  keyboard: { top: number; height: number } | null;
 }
 
 /**
@@ -268,12 +296,37 @@ export interface ComposerHeightInput {
  * It needs a definite one — `auto` is unsupported — and combine wants that to
  * follow the viewport. The host box already does (it is the flex remainder
  * between the header and the tab bar), so the height is its measured one,
- * except when the visual viewport is smaller than the layout viewport: that is
- * the software keyboard on iOS, which does not resize the page. Left at the
- * layout height there, the editor's footer — the post button — sits under the
- * keyboard. Capping at the visible bottom keeps it reachable.
+ * capped so the element's bottom never falls below what is actually visible.
+ * Otherwise the editor's footer — the post button — sits under the keyboard.
+ *
+ * Where the visible bottom comes from is the whole difficulty, and it differs
+ * by browser:
+ *
+ * - **Android Chrome**: the keyboard's own rectangle. eHagaki sets
+ *   `navigator.virtualKeyboard.overlaysContent = true` when the composer
+ *   mounts, which tells the browser not to resize anything for the keyboard —
+ *   so `visualViewport` keeps reporting the full height and there is nothing to
+ *   subtract. This is why the editor stayed full height there: the signal
+ *   combine was watching had been switched off by the thing it embeds.
+ * - **iOS Safari and the rest**: `visualViewport`, which does shrink. Also the
+ *   Android case before the composer has mounted, when the opt-in has not
+ *   happened yet and the keyboard still resizes the visual viewport.
+ *
+ * Both are in the host box's own coordinate space, so the difference is
+ * unaffected by the page scrolling under a keyboard.
  */
-export function composerHeight({ hostTop, hostHeight, viewport }: ComposerHeightInput): number {
-  const visible = viewport ? viewport.offsetTop + viewport.height - hostTop : hostHeight;
+export function composerHeight({
+  hostTop,
+  hostHeight,
+  viewport,
+  keyboard,
+}: ComposerHeightInput): number {
+  const visibleBottom =
+    keyboard && keyboard.height > 0
+      ? keyboard.top
+      : viewport
+        ? viewport.offsetTop + viewport.height
+        : null;
+  const visible = visibleBottom === null ? hostHeight : visibleBottom - hostTop;
   return Math.max(Math.min(hostHeight, visible), MIN_COMPOSER_HEIGHT);
 }

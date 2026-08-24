@@ -80,28 +80,80 @@ describe('clearEhagakiStorage', () => {
 });
 
 describe('composerHeight', () => {
+  /** 700 of layout viewport, the host box running from y=50 to y=650. */
+  const page = { hostTop: 50, hostHeight: 600 };
+  const noKeyboard = { top: 0, height: 0 };
+
   it('takes the host box height when the whole page is visible', () => {
     expect(
       composerHeight({
-        hostTop: 50,
-        hostHeight: 600,
+        ...page,
         viewport: { offsetTop: 0, height: 700 },
+        keyboard: null,
       })
     ).toBe(600);
   });
 
-  it('falls back to the host box without a visual viewport', () => {
-    expect(composerHeight({ hostTop: 50, hostHeight: 600, viewport: null })).toBe(600);
+  it('falls back to the host box with neither signal', () => {
+    expect(composerHeight({ ...page, viewport: null, keyboard: null })).toBe(600);
   });
 
-  it('caps at the visible bottom, so the keyboard cannot cover the footer', () => {
+  it('caps at the visible bottom when the visual viewport shrinks', () => {
     // iOS with the keyboard open: the page keeps its height, the visible part
     // ends at 400 while the host box still claims to run to 650.
     expect(
       composerHeight({
-        hostTop: 50,
-        hostHeight: 600,
+        ...page,
         viewport: { offsetTop: 0, height: 400 },
+        keyboard: null,
+      })
+    ).toBe(350);
+  });
+
+  it("caps at the keyboard's own top when the viewport does not shrink", () => {
+    // Android Chrome once eHagaki has opted the page into overlaying the
+    // keyboard: `visualViewport` still reports the full 700, and the only thing
+    // that knows a keyboard is up is its rectangle.
+    expect(
+      composerHeight({
+        ...page,
+        viewport: { offsetTop: 0, height: 700 },
+        keyboard: { top: 400, height: 300 },
+      })
+    ).toBe(350);
+  });
+
+  it('ignores a zero-height keyboard rectangle, which means no keyboard', () => {
+    expect(
+      composerHeight({
+        ...page,
+        viewport: { offsetTop: 0, height: 400 },
+        keyboard: noKeyboard,
+      })
+    ).toBe(350);
+  });
+
+  it('prefers the keyboard rectangle when both signals report one', () => {
+    // Nothing says the two have to agree; the keyboard's own geometry is the
+    // one that was measured rather than inferred.
+    expect(
+      composerHeight({
+        ...page,
+        viewport: { offsetTop: 0, height: 500 },
+        keyboard: { top: 400, height: 300 },
+      })
+    ).toBe(350);
+  });
+
+  it('is unaffected by the page scrolling under an open keyboard', () => {
+    // Both edges are in the same client coordinates, so a scroll that moves the
+    // host box moves the keyboard's rectangle with it.
+    expect(
+      composerHeight({
+        hostTop: 50 - 120,
+        hostHeight: 600,
+        viewport: { offsetTop: 0, height: 700 },
+        keyboard: { top: 400 - 120, height: 300 },
       })
     ).toBe(350);
   });
@@ -109,9 +161,9 @@ describe('composerHeight', () => {
   it('never shrinks past the minimum, however little is visible', () => {
     expect(
       composerHeight({
-        hostTop: 50,
-        hostHeight: 600,
+        ...page,
         viewport: { offsetTop: 0, height: 100 },
+        keyboard: null,
       })
     ).toBe(MIN_COMPOSER_HEIGHT);
   });

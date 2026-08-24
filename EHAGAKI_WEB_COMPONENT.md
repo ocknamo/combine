@@ -41,9 +41,9 @@ combine の投稿エディタは eHagaki の埋め込み。iframe（`ehagaki.emb
   タブを離れても壊さないのは、下書きと初期化コストを 2 回払わないため
   （`App.svelte` が `active` を渡し、`ComposeView` がそれを見て組み立てる）。
 - **高さ**: 要素は definite な CSS height が必須で `auto` は非対応。host box（ヘッダとタブバーの
-  あいだの flex の余り）を `ResizeObserver` で測って px で渡している。加えて `visualViewport` も
-  見る: iOS のソフトキーボードはページをリサイズしないので、レイアウト上の高さのまま渡すと
-  エディタのフッタ（投稿ボタン）がキーボードの下に潜る（`composerHeight`）。
+  あいだの flex の余り）を `ResizeObserver` で測って px で渡している。ソフトキーボードの
+  ぶんを引くために `visualViewport` と `navigator.virtualKeyboard` の両方を見る（`composerHeight`。
+  なぜ両方要るかは下記「キーボードで投稿ボタンが隠れる」）。
 - **設定**: `setSettings({ locale: 'ja', themeMode: 'light', clientTagEnabled: true })`。
   iframe 時代のクエリ（`defaultLocale` / `embedClientTag`）と同じ内容。`light` 固定なのは
   combine が light 専用テーマ（`color-scheme: light`）だから。
@@ -132,6 +132,67 @@ combine 側の対処は `shieldDexieRegistry`（`ehagakiComposer.ts`）。コン
 あるので、そちらを eHagaki と同じ 4.4.2 に寄せる（あるいは eHagaki に 4.4.4 へ上げてもらう）のが
 素直で、揃った時点でこの回避策は要らなくなる。
 
+## キーボードで投稿ボタンが隠れる（原因確定・修正済み）
+
+**Android Chrome で報告された不具合。** 本文をタップしてキーボードが出ても投稿フォームは縦長のままで、
+フッタの投稿ボタンがキーボードの下に潜ったままになる。
+
+### 原因
+
+**eHagaki が `navigator.virtualKeyboard.overlaysContent = true` を立てる。** Android Chrome かつ
+VirtualKeyboard API がある場合に限り、コンポーザのマウント時（`setupViewportListener`）に実行される。
+この opt-in は「キーボードでビューポートをリサイズするな、幾何情報は `geometrychange` と
+`boundingRect` で受け取る」という宣言なので、**`visualViewport` がキーボードで縮まなくなる**。
+
+combine の高さ計算は `visualViewport` だけを見ていた。縮まないのだから引く物が無く、同じ高さを
+書き続ける ―― これが「縦長のまま」の正体。**埋め込んだ相手が、こちらの見ている信号を切っていた。**
+
+実測（Playwright、Android UA、実物のバンドル）:
+
+| | `overlaysContent` | `visualViewport.height` |
+|---|---|---|
+| compose を開く前 | `false`（既定値） | 844 |
+| コンポーザのマウント後 | **`true`** | 844 |
+| キーボード（300px）を出した後 | `true` | **844**（縮まない） |
+
+最初は「ページのスクロールで host box の上端がずれるのが原因」と考えたが、これは計算で否定された。
+修正前の式は展開すると `要素の下端 = min(hostTop + hostHeight, offsetTop + vh) ≤ 可視領域の下端` で、
+スクロールは両辺を同じだけ動かして相殺する。切り分けは 2 段階でやった:
+
+1. **高さをベタ書き（400px）して実機相当で確認** → 効いた（`:host{display:block}`、内側は `height:100%`）。
+   書いた高さは要素に伝わる。
+2. **`visualViewport` の縮みを偽装して `resize` を投げる** → 645px → 454px に正しく縮んだ。
+   購読も式も要素側も正常。**残るのは「その信号が来ない」だけ**で、上の表がその理由だった。
+
+なお eHagaki 自身もコンテナモードでは自前のキーボード補正を持っている（host box のうち隠れている量を
+`--main-content-keyboard-adjustment` などに流す）が、**それも動いていない**。適用が `F6()` という
+フォーカス判定でゲートされていて、その中身が `document.activeElement` を `[data-post-editor-root]` と
+`closest()` で照合するものだから。このセレクタはシャドウルートの中にあり、シャドウ内にフォーカスが
+あるとき `document.activeElement` は retarget されてホスト要素を返すので、決して一致しない。
+`getSelection()` のフォールバックもシャドウ境界を越えない。**上流のバグ**として要望に出す（下記）。
+つまり Android Chrome では、combine 側も eHagaki 側も同時に効かなくなっていた。
+
+### 対応
+
+`composerHeight` が「可視領域の下端」を 2 つの経路から取るようにした。
+
+- **キーボードの矩形**（`navigator.virtualKeyboard.boundingRect`）の高さが 0 でなければ、その `top`。
+  Android Chrome で eHagaki が opt-in したあとは、これだけがキーボードの位置を知っている。
+- そうでなければ従来どおり `visualViewport`（iOS Safari はこちらが縮む。Android でもコンポーザを
+  マウントする前は opt-in されていないのでこちら）。
+
+どちらも host box と同じ client 座標なので、差はページのスクロールに影響されない。購読には
+`geometrychange` を追加した。
+
+`overlaysContent` を combine 側から `false` に戻す手もあるが採らない。eHagaki が自分の補正のために
+立てているもので、上流が `F6()` を直せば必要になる。読むだけにしておけば衝突しない
+（そのとき eHagaki が計算する「隠れている量」は、こちらが下端を合わせるので 0 になる）。
+
+**実機の Android Chrome で確認済み**（報告者の環境）。手元では Playwright で実物の要素に対して
+測ってあり（`overlaysContent: true` / `visualViewport` は 844 のまま / キーボード矩形 top 544 →
+要素の下端が 735 から **544** に移動）、こちらは偽の `geometrychange` による検証。
+**iOS Safari は未確認**で、宿題に残る（そちらは従来どおり `visualViewport` の経路）。
+
 ## 残っている宿題
 
 - [ ] **実機確認**。モバイルのキーボード挙動（`composerHeight` の visualViewport 補正）と
@@ -142,6 +203,18 @@ combine 側の対処は `shieldDexieRegistry`（`ehagakiComposer.ts`）。コン
   エディタへ自動フォーカスする」は移行しても解決しない。
 
 ## 上流への要望（本命）
+
+**`F6()` のフォーカス判定をシャドウルート対応にしてもらう。** Web Component 版では
+`document.activeElement` が retarget されてホスト要素を返すため `[data-post-editor-root]` に一致せず、
+eHagaki 自身のキーボード補正が一度も適用されない（詳細は上記「キーボードで投稿ボタンが隠れる」）。
+`mountApp` が作って設定に持っている `domRoot` の `activeElement` を見るか、
+`document.activeElement` から `shadowRoot?.activeElement` を辿るだけで済むはずで、差分は小さい。
+埋め込み側が高さをどう渡していても効く土台なので、こちらが本筋。
+
+なお `overlaysContent = true` を立てるのはホストのページ全体に効く副作用なので、
+**属性か設定でオフにできる**とさらに良い（ホスト側が自前でレイアウトを持っている場合、
+`visualViewport` が縮まなくなるのは想定外の挙動になる）。
+
 
 **NIP-07 の自動ログインを opt-in で足してもらう**のがいちばん筋が良い。
 `authenticateWithNip07()` は既にあり、いまログインダイアログのボタンからしか呼ばれていない。

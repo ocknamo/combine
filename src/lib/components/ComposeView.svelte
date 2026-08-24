@@ -27,6 +27,7 @@ import {
   type PostErrorDetail,
   postErrorMessage,
   shieldDexieRegistry,
+  virtualKeyboard,
 } from '../ehagakiComposer';
 import { router } from '../router.svelte';
 import { toast } from '../toast.svelte';
@@ -120,10 +121,12 @@ function applyHeight(): void {
   if (!composer || !hostEl) return;
   const rect = hostEl.getBoundingClientRect();
   const viewport = window.visualViewport;
+  const keyboard = virtualKeyboard()?.boundingRect ?? null;
   const height = composerHeight({
     hostTop: rect.top,
     hostHeight: rect.height,
     viewport: viewport ? { offsetTop: viewport.offsetTop, height: viewport.height } : null,
+    keyboard: keyboard ? { top: keyboard.top, height: keyboard.height } : null,
   });
   composer.style.height = `${height}px`;
 }
@@ -184,9 +187,11 @@ $effect(() => {
 });
 
 // The host box follows the viewport, and the element's height is copied from
-// it. `visualViewport` is watched as well for the case the box cannot see: the
-// software keyboard on iOS, which shrinks what is visible without resizing the
-// page (see `composerHeight`).
+// it. Two more sources are watched for what the box cannot see — a software
+// keyboard — because no single one covers both mobile browsers (see
+// `composerHeight`): `visualViewport`, which shrinks on iOS, and the keyboard's
+// own geometry, which is all Android Chrome reports once the composer has
+// switched that browser to overlaying the keyboard.
 $effect(() => {
   const host = hostEl;
   if (!host) return;
@@ -195,10 +200,13 @@ $effect(() => {
   const viewport = window.visualViewport;
   viewport?.addEventListener('resize', applyHeight);
   viewport?.addEventListener('scroll', applyHeight);
+  const keyboard = virtualKeyboard();
+  keyboard?.addEventListener('geometrychange', applyHeight);
   return () => {
     observer.disconnect();
     viewport?.removeEventListener('resize', applyHeight);
     viewport?.removeEventListener('scroll', applyHeight);
+    keyboard?.removeEventListener('geometrychange', applyHeight);
   };
 });
 
