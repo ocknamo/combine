@@ -43,7 +43,7 @@ describe('bundle location', () => {
   });
 });
 
-/** The element as far as {@link createComposer} touches it — there is no DOM here. */
+/** There is no DOM in this test environment. */
 function fakeDocument() {
   const attributes = new Map<string, string>();
   const element = {
@@ -72,9 +72,6 @@ describe('createComposer', () => {
     expect(element.assetBase).toBe(EHAGAKI_ASSET_BASE);
   });
 
-  // Before it is connected, because the element reads the attribute when it
-  // mounts. Without it the user taps through eHagaki's login dialog on the
-  // first visit, and again after every account switch.
   it('opts into NIP-07 auto-login', () => {
     const { doc, attributes } = fakeDocument();
     createComposer(doc);
