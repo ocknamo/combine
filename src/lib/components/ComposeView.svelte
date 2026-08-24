@@ -48,6 +48,18 @@ let builtFor: string | null = null;
 /** Set while the element is still coming up, and applied once it is ready. */
 let pendingContext: { reply: string | null; quotes: string[] } | null = null;
 
+/**
+ * 実機での切り分け用の一時コード。消すこと。
+ *
+ * 真因の 2 択（`applyHeight` が呼ばれていない / 書いた高さが効いていない）を
+ * 分けるために、計算をやめて固定値をベタ書きする。`null` に戻せば通常の計算に戻る。
+ *
+ * 400px にしてあるのは host box より明らかに短いから。compose を開いた時点で
+ * ――キーボードを出すまでもなく――効いているかどうかが目で分かる。`applyHeight` は
+ * マウント時に必ず 1 回呼ばれる（`mountComposer`）ので、この書き込み自体は確実に走る。
+ */
+const DEBUG_FIXED_HEIGHT: string | null = '400px';
+
 let targetKind = $state<'reply' | 'quote'>('reply');
 let targetId = $state('');
 let contextLabel = $state<string | null>(null);
@@ -118,6 +130,10 @@ function teardown(): void {
 
 function applyHeight(): void {
   if (!composer || !hostEl) return;
+  if (DEBUG_FIXED_HEIGHT !== null) {
+    composer.style.height = DEBUG_FIXED_HEIGHT;
+    return;
+  }
   const rect = hostEl.getBoundingClientRect();
   const viewport = window.visualViewport;
   const height = composerHeight({
