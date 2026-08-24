@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   clearEhagakiStorage,
-  composerBox,
+  composerHeight,
   describeFailure,
   EHAGAKI_ASSET_BASE,
   EHAGAKI_ORIGIN,
@@ -9,7 +9,6 @@ import {
   EHAGAKI_SETTINGS,
   EHAGAKI_STORAGE_PREFIX,
   isDisconnected,
-  KEYBOARD_THRESHOLD,
   MIN_COMPOSER_HEIGHT,
   postErrorMessage,
   shieldDexieRegistry,
@@ -80,98 +79,41 @@ describe('clearEhagakiStorage', () => {
   });
 });
 
-/** A phone-sized page: the header takes the first 50px, the tab bar the last. */
-function scene(over: {
-  hostTop?: number;
-  hostHeight?: number;
-  offsetTop?: number;
-  height?: number;
-  scale?: number;
-  layoutHeight?: number;
-  viewport?: null;
-}) {
-  const layoutHeight = over.layoutHeight ?? 700;
-  return {
-    host: {
-      top: over.hostTop ?? 50,
-      left: 0,
-      width: 390,
-      height: over.hostHeight ?? 600,
-    },
-    viewport:
-      over.viewport === null
-        ? null
-        : {
-            offsetTop: over.offsetTop ?? 0,
-            height: over.height ?? layoutHeight,
-            scale: over.scale ?? 1,
-          },
-    layoutHeight,
-  };
-}
-
-describe('composerBox', () => {
+describe('composerHeight', () => {
   it('takes the host box height when the whole page is visible', () => {
-    expect(composerBox(scene({}))).toEqual({ mode: 'flow', height: 600 });
+    expect(
+      composerHeight({
+        hostTop: 50,
+        hostHeight: 600,
+        viewport: { offsetTop: 0, height: 700 },
+      })
+    ).toBe(600);
   });
 
   it('falls back to the host box without a visual viewport', () => {
-    expect(composerBox(scene({ viewport: null }))).toEqual({ mode: 'flow', height: 600 });
+    expect(composerHeight({ hostTop: 50, hostHeight: 600, viewport: null })).toBe(600);
   });
 
-  it('stays in flow for the small bites browser chrome takes, capped at the visible bottom', () => {
-    // An accessory bar or a collapsing address bar: not a keyboard, but the
-    // footer still has to stay above it.
-    const box = composerBox(scene({ height: 700 - KEYBOARD_THRESHOLD + 10 }));
-    expect(box).toEqual({ mode: 'flow', height: 700 - KEYBOARD_THRESHOLD + 10 - 50 });
+  it('caps at the visible bottom, so the keyboard cannot cover the footer', () => {
+    // iOS with the keyboard open: the page keeps its height, the visible part
+    // ends at 400 while the host box still claims to run to 650.
+    expect(
+      composerHeight({
+        hostTop: 50,
+        hostHeight: 600,
+        viewport: { offsetTop: 0, height: 400 },
+      })
+    ).toBe(350);
   });
 
-  it('never shrinks past the minimum while in flow', () => {
-    expect(composerBox(scene({ hostHeight: 100 }))).toEqual({
-      mode: 'flow',
-      height: MIN_COMPOSER_HEIGHT,
-    });
-  });
-
-  it('pins to the visible rectangle once a keyboard is up', () => {
-    // 700 of layout viewport, 400 of it visible: the keyboard has 300.
-    expect(composerBox(scene({ height: 400 }))).toEqual({
-      mode: 'pinned',
-      top: 0,
-      left: 0,
-      width: 390,
-      height: 400,
-    });
-  });
-
-  it('follows the visual viewport when the keyboard scrolled it', () => {
-    const box = composerBox(scene({ height: 400, offsetTop: 120 }));
-    expect(box).toEqual({ mode: 'pinned', top: 120, left: 0, width: 390, height: 400 });
-  });
-
-  it('pins to what is visible even when the page scrolled the host box away', () => {
-    // The case a height alone cannot fix: the browser scrolled the document to
-    // reveal the caret, so the host box no longer starts where the screen does.
-    const box = composerBox(scene({ hostTop: -180, height: 400 }));
-    expect(box).toEqual({ mode: 'pinned', top: 0, left: 0, width: 390, height: 400 });
-  });
-
-  it('gives the visible height verbatim, minimum included, so the footer clears the keyboard', () => {
-    const box = composerBox(scene({ height: MIN_COMPOSER_HEIGHT - 40 }));
-    expect(box).toEqual({
-      mode: 'pinned',
-      top: 0,
-      left: 0,
-      width: 390,
-      height: MIN_COMPOSER_HEIGHT - 40,
-    });
-  });
-
-  it('reads a pinch-zoomed viewport as zoom, not as a keyboard', () => {
-    // Zooming shrinks the visible area the same way; pinning to it would fight
-    // the user's panning.
-    const box = composerBox(scene({ height: 350, scale: 2 }));
-    expect(box).toEqual({ mode: 'flow', height: 300 });
+  it('never shrinks past the minimum, however little is visible', () => {
+    expect(
+      composerHeight({
+        hostTop: 50,
+        hostHeight: 600,
+        viewport: { offsetTop: 0, height: 100 },
+      })
+    ).toBe(MIN_COMPOSER_HEIGHT);
   });
 });
 
