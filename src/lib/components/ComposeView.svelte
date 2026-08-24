@@ -27,6 +27,7 @@ import {
   type PostErrorDetail,
   postErrorMessage,
   shieldDexieRegistry,
+  virtualKeyboard,
 } from '../ehagakiComposer';
 import { router } from '../router.svelte';
 import { toast } from '../toast.svelte';
@@ -47,18 +48,6 @@ let remounted = false;
 let builtFor: string | null = null;
 /** Set while the element is still coming up, and applied once it is ready. */
 let pendingContext: { reply: string | null; quotes: string[] } | null = null;
-
-/**
- * 実機での切り分け用の一時コード。消すこと。
- *
- * 真因の 2 択（`applyHeight` が呼ばれていない / 書いた高さが効いていない）を
- * 分けるために、計算をやめて固定値をベタ書きする。`null` に戻せば通常の計算に戻る。
- *
- * 400px にしてあるのは host box より明らかに短いから。compose を開いた時点で
- * ――キーボードを出すまでもなく――効いているかどうかが目で分かる。`applyHeight` は
- * マウント時に必ず 1 回呼ばれる（`mountComposer`）ので、この書き込み自体は確実に走る。
- */
-const DEBUG_FIXED_HEIGHT: string | null = '400px';
 
 let targetKind = $state<'reply' | 'quote'>('reply');
 let targetId = $state('');
@@ -130,16 +119,14 @@ function teardown(): void {
 
 function applyHeight(): void {
   if (!composer || !hostEl) return;
-  if (DEBUG_FIXED_HEIGHT !== null) {
-    composer.style.height = DEBUG_FIXED_HEIGHT;
-    return;
-  }
   const rect = hostEl.getBoundingClientRect();
   const viewport = window.visualViewport;
+  const keyboard = virtualKeyboard()?.boundingRect ?? null;
   const height = composerHeight({
     hostTop: rect.top,
     hostHeight: rect.height,
     viewport: viewport ? { offsetTop: viewport.offsetTop, height: viewport.height } : null,
+    keyboard: keyboard ? { top: keyboard.top, height: keyboard.height } : null,
   });
   composer.style.height = `${height}px`;
 }
@@ -200,9 +187,11 @@ $effect(() => {
 });
 
 // The host box follows the viewport, and the element's height is copied from
-// it. `visualViewport` is watched as well for the case the box cannot see: the
-// software keyboard on iOS, which shrinks what is visible without resizing the
-// page (see `composerHeight`).
+// it. Two more sources are watched for what the box cannot see — a software
+// keyboard — because no single one covers both mobile browsers (see
+// `composerHeight`): `visualViewport`, which shrinks on iOS, and the keyboard's
+// own geometry, which is all Android Chrome reports once the composer has
+// switched that browser to overlaying the keyboard.
 $effect(() => {
   const host = hostEl;
   if (!host) return;
@@ -211,10 +200,13 @@ $effect(() => {
   const viewport = window.visualViewport;
   viewport?.addEventListener('resize', applyHeight);
   viewport?.addEventListener('scroll', applyHeight);
+  const keyboard = virtualKeyboard();
+  keyboard?.addEventListener('geometrychange', applyHeight);
   return () => {
     observer.disconnect();
     viewport?.removeEventListener('resize', applyHeight);
     viewport?.removeEventListener('scroll', applyHeight);
+    keyboard?.removeEventListener('geometrychange', applyHeight);
   };
 });
 
