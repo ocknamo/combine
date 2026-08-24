@@ -28,8 +28,21 @@ class Router {
     });
   }
 
+  /**
+   * Move to `path`, and be there before this function returns.
+   *
+   * The hash alone would not do that: `hashchange` arrives a task later, which
+   * is a task too late for a caller that has to act on the new view while the
+   * user's tap still counts as a gesture (`TabBar` focuses the post editor).
+   * The listener re-parsing the same hash afterwards is a no-op, and the depth
+   * bookkeeping stays there, where the anchors in `TabBar` also reach it.
+   */
   go(path: string): void {
     location.hash = path;
+    const next = parseRoute(location.hash);
+    if (next.name !== this.current.name || next.param !== this.current.param) {
+      this.current = next;
+    }
   }
 
   /**

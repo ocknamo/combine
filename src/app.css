@@ -127,6 +127,30 @@ nostr-post {
   --nt-reactor-font-size: 0.8rem;
 }
 
+/* The post editor's own variables, for two colours its documented
+   `--ehagaki-*` tokens do not reach: the red border eHagaki puts on its header
+   buttons (its postcard motif, which reads as an error state next to combine's
+   gold) and the speech bubble beside the mascot.
+
+   Private upstream names, so a rename there puts eHagaki's own colours back —
+   visible, but harmless.
+
+   On the element itself, not on the wrapper the `--ehagaki-*` tokens sit on
+   (`ComposeView.svelte`), because inheriting is not enough here: the element
+   declares these names on its own `:host`, and a declaration it makes itself
+   beats one it merely inherits. A rule from this document does win — an outer
+   tree takes precedence over `:host`. Written here rather than in a component
+   because the element is created in script and appears in nobody's markup, so
+   no scoped CSS can select it.
+
+   The mascot is out of reach even from here; see `lib/ehagakiComposer.ts`. */
+ehagaki-composer {
+  --hagaki: var(--gold);
+  --message-flavor-bg: var(--bg-subtle);
+  --message-flavor-color: var(--gold-strong);
+  --message-flavor-border: var(--olive);
+}
+
 /* Nosskey signing iframe overlay: the iframe toggles its own display,
    the backdrop follows via the `visible` class set from JS. */
 .nosskey-overlay {
