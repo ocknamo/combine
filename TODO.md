@@ -11,8 +11,12 @@
 - [ ] **実機で通す**
   - キーボードで投稿ボタンが隠れる件は**原因を確定させて修正し、Android Chrome の実機で確認済み**
     （eHagaki が `navigator.virtualKeyboard.overlaysContent` を立てるので `visualViewport` が
-    縮まなくなっていた。経緯は `EHAGAKI_WEB_COMPONENT.md`）。**iOS Safari は未確認**
-    （そちらは従来どおり `visualViewport` の経路で、退行していないかを見る）。
+    縮まなくなっていた。経緯は `EHAGAKI_WEB_COMPONENT.md`）。
+  - その後**「今度は縮みすぎる」報告**があり、キーボード矩形の `top`（原点が host box と
+    合っていなかった）ではなく**高さ**から可視領域の下端を出すように直した。
+    **こちらは実機未確認**で、`?viewport-debug` を付けると `applyHeight` の数字が画面に出る
+    （どちらも `EHAGAKI_WEB_COMPONENT.md` の「続報: 今度は縮みすぎる」）。
+  - **iOS Safari は未確認**（そちらは従来どおり `visualViewport` の経路で、退行していないかを見る）。
   - 動画圧縮も未確認。クロスオリジンの worker は上流が対応済み（blob URL 経由）だが、
     実機で通したことはまだ無い。
 

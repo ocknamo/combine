@@ -264,7 +264,10 @@ export const MIN_COMPOSER_HEIGHT = 240;
  * where the keyboard is. See `composerHeight`.
  */
 export interface VirtualKeyboardLike {
-  /** The keyboard's rectangle in client coordinates; all zeros when hidden. */
+  /**
+   * The keyboard's rectangle, all zeros when hidden. Documented as client
+   * coordinates, but only its height is trusted here (see `composerHeight`).
+   */
   boundingRect: DOMRectReadOnly;
   addEventListener(type: 'geometrychange', listener: () => void): void;
   removeEventListener(type: 'geometrychange', listener: () => void): void;
@@ -281,13 +284,19 @@ export interface ComposerHeightInput {
   hostTop: number;
   /** Height the host box has in the page's own layout. */
   hostHeight: number;
+  /**
+   * `window.innerHeight`. The layout viewport is the space `hostTop` is
+   * measured in, and the box a docked keyboard eats into from the bottom.
+   */
+  layoutHeight: number;
   /** `visualViewport`'s offset and height, or `null` where it is missing. */
   viewport: { offsetTop: number; height: number } | null;
   /**
-   * `navigator.virtualKeyboard.boundingRect`, in the same client coordinates as
-   * the host box. A zero height means "no keyboard, or nothing is telling us".
+   * How tall `navigator.virtualKeyboard.boundingRect` says the keyboard is.
+   * Zero means "no keyboard, or nothing is telling us". Only the height is
+   * read, deliberately — see `composerHeight`.
    */
-  keyboard: { top: number; height: number } | null;
+  keyboard: { height: number } | null;
 }
 
 /**
@@ -300,9 +309,9 @@ export interface ComposerHeightInput {
  * Otherwise the editor's footer — the post button — sits under the keyboard.
  *
  * Where the visible bottom comes from is the whole difficulty, and it differs
- * by browser:
+ * by browser, so both signals are read and the lower bottom wins:
  *
- * - **Android Chrome**: the keyboard's own rectangle. eHagaki sets
+ * - **Android Chrome**: the keyboard's own geometry. eHagaki sets
  *   `navigator.virtualKeyboard.overlaysContent = true` when the composer
  *   mounts, which tells the browser not to resize anything for the keyboard —
  *   so `visualViewport` keeps reporting the full height and there is nothing to
@@ -312,21 +321,36 @@ export interface ComposerHeightInput {
  *   Android case before the composer has mounted, when the opt-in has not
  *   happened yet and the keyboard still resizes the visual viewport.
  *
- * Both are in the host box's own coordinate space, so the difference is
- * unaffected by the page scrolling under a keyboard.
+ * **Only the keyboard's height is read, never the `top` of its rectangle**,
+ * although that is the very edge being looked for. A `top` is worth nothing
+ * unless the rectangle is in the host box's coordinate space, and on the
+ * device that reported this it is not: the editor came back exactly
+ * `MIN_COMPOSER_HEIGHT` tall (240 CSS px measured off the screenshot) where 371
+ * were free above the keyboard, so the bottom it was handed sat at least 130px
+ * too high — not a rounding error, a different origin. A height has no origin
+ * to disagree about, and a keyboard is docked flush with the bottom of the
+ * layout viewport, so `innerHeight - height` reconstructs its top in our own
+ * coordinates. It is what eHagaki computes for itself internally, from the same
+ * two numbers.
+ *
+ * That also makes the result immune to the page scrolling under an open
+ * keyboard: the keyboard does not move with the document, and now neither does
+ * the bottom derived from it.
  */
 export function composerHeight({
   hostTop,
   hostHeight,
+  layoutHeight,
   viewport,
   keyboard,
 }: ComposerHeightInput): number {
-  const visibleBottom =
-    keyboard && keyboard.height > 0
-      ? keyboard.top
-      : viewport
-        ? viewport.offsetTop + viewport.height
-        : null;
-  const visible = visibleBottom === null ? hostHeight : visibleBottom - hostTop;
+  const bottoms: number[] = [];
+  if (viewport) bottoms.push(viewport.offsetTop + viewport.height);
+  // A keyboard taller than the viewport it is docked in is not a keyboard;
+  // whatever that rectangle means, subtracting it would leave nothing.
+  if (keyboard && keyboard.height > 0 && keyboard.height < layoutHeight) {
+    bottoms.push(layoutHeight - keyboard.height);
+  }
+  const visible = bottoms.length === 0 ? hostHeight : Math.min(...bottoms) - hostTop;
   return Math.max(Math.min(hostHeight, visible), MIN_COMPOSER_HEIGHT);
 }
