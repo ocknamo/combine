@@ -81,8 +81,8 @@ describe('clearEhagakiStorage', () => {
 
 describe('composerHeight', () => {
   /** 700 of layout viewport, the host box running from y=50 to y=650. */
-  const page = { hostTop: 50, hostHeight: 600 };
-  const noKeyboard = { top: 0, height: 0 };
+  const page = { hostTop: 50, hostHeight: 600, layoutHeight: 700 };
+  const noKeyboard = { height: 0 };
 
   it('takes the host box height when the whole page is visible', () => {
     expect(
@@ -110,15 +110,16 @@ describe('composerHeight', () => {
     ).toBe(350);
   });
 
-  it("caps at the keyboard's own top when the viewport does not shrink", () => {
+  it('takes the keyboard out of the viewport when the viewport does not shrink', () => {
     // Android Chrome once eHagaki has opted the page into overlaying the
     // keyboard: `visualViewport` still reports the full 700, and the only thing
-    // that knows a keyboard is up is its rectangle.
+    // that knows a keyboard is up is its rectangle. 300 of keyboard at the
+    // bottom of 700 puts its top at 400.
     expect(
       composerHeight({
         ...page,
         viewport: { offsetTop: 0, height: 700 },
-        keyboard: { top: 400, height: 300 },
+        keyboard: { height: 300 },
       })
     ).toBe(350);
   });
@@ -133,29 +134,58 @@ describe('composerHeight', () => {
     ).toBe(350);
   });
 
-  it('prefers the keyboard rectangle when both signals report one', () => {
-    // Nothing says the two have to agree; the keyboard's own geometry is the
-    // one that was measured rather than inferred.
+  it('ignores a keyboard taller than the viewport it is docked in', () => {
+    // Whatever such a rectangle means, it is not a keyboard, and subtracting it
+    // would leave the editor pinned at its minimum with the post button under
+    // the keyboard — the failure this is here to avoid.
+    expect(
+      composerHeight({
+        ...page,
+        viewport: { offsetTop: 0, height: 700 },
+        keyboard: { height: 900 },
+      })
+    ).toBe(600);
+  });
+
+  it('is unmoved by where the keyboard rectangle claims to be', () => {
+    // The reported bug: on the device that hit it the rectangle sat far above
+    // the keyboard's real top, which took the editor down to its minimum with
+    // 371px free. Only the height is read now, so the offset cannot land.
+    expect(
+      composerHeight({
+        hostTop: 90.7,
+        hostHeight: 618,
+        layoutHeight: 808,
+        viewport: { offsetTop: 0, height: 808 },
+        keyboard: { height: 346.3 },
+      })
+    ).toBeCloseTo(371, 0);
+  });
+
+  it('takes the lower bottom when both signals report one', () => {
+    // Nothing says the two have to agree, and the editor's footer has to clear
+    // whichever of them is right.
     expect(
       composerHeight({
         ...page,
         viewport: { offsetTop: 0, height: 500 },
-        keyboard: { top: 400, height: 300 },
+        keyboard: { height: 300 },
       })
     ).toBe(350);
   });
 
-  it('is unaffected by the page scrolling under an open keyboard', () => {
-    // Both edges are in the same client coordinates, so a scroll that moves the
-    // host box moves the keyboard's rectangle with it.
+  it('keeps the element bottom on the keyboard as the page scrolls under it', () => {
+    // A scroll moves the host box in client coordinates; the keyboard, docked
+    // to the viewport, does not move with it. 120 of scroll puts the host box
+    // at -70, and the element still has to end at the keyboard's top (400).
     expect(
       composerHeight({
+        ...page,
         hostTop: 50 - 120,
-        hostHeight: 600,
         viewport: { offsetTop: 0, height: 700 },
-        keyboard: { top: 400 - 120, height: 300 },
+        keyboard: { height: 300 },
       })
-    ).toBe(350);
+    ).toBe(470);
   });
 
   it('never shrinks past the minimum, however little is visible', () => {

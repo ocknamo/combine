@@ -49,6 +49,17 @@ let builtFor: string | null = null;
 /** Set while the element is still coming up, and applied once it is ready. */
 let pendingContext: { reply: string | null; quotes: string[] } | null = null;
 
+/*
+  `?viewport-debug` in the URL puts the numbers `applyHeight` works from on
+  screen. The keyboard bugs only show on a phone that no devtools can be
+  attached to, and every round of guessing at which of the geometry signals is
+  lying has cost a release; this makes one screenshot answer it. Read once —
+  the flag cannot change without a reload.
+*/
+const viewportDebug =
+  typeof location !== 'undefined' && new URLSearchParams(location.search).has('viewport-debug');
+let debugReadout = $state('');
+
 let targetKind = $state<'reply' | 'quote'>('reply');
 let targetId = $state('');
 let contextLabel = $state<string | null>(null);
@@ -125,10 +136,23 @@ function applyHeight(): void {
   const height = composerHeight({
     hostTop: rect.top,
     hostHeight: rect.height,
+    layoutHeight: window.innerHeight,
     viewport: viewport ? { offsetTop: viewport.offsetTop, height: viewport.height } : null,
-    keyboard: keyboard ? { top: keyboard.top, height: keyboard.height } : null,
+    keyboard: keyboard ? { height: keyboard.height } : null,
   });
   composer.style.height = `${height}px`;
+  if (viewportDebug) {
+    debugReadout = [
+      `height ${height.toFixed(1)} / host ${rect.top.toFixed(1)}+${rect.height.toFixed(1)}`,
+      `inner ${window.innerHeight} dpr ${window.devicePixelRatio} scrollY ${window.scrollY}`,
+      viewport
+        ? `vv ${viewport.offsetTop.toFixed(1)}+${viewport.height.toFixed(1)} w${viewport.width.toFixed(0)} x${viewport.scale}`
+        : 'vv none',
+      keyboard
+        ? `kb top ${keyboard.top.toFixed(1)} h ${keyboard.height.toFixed(1)} bottom ${keyboard.bottom.toFixed(1)} w ${keyboard.width.toFixed(0)}`
+        : 'kb none',
+    ].join('\n');
+  }
 }
 
 // Build it once this tab is opened, and rebuild it when the account changes:
@@ -280,6 +304,10 @@ function setContext(context: { reply: string | null; quotes: string[] }): void {
     <!-- The element is appended here by mountComposer; nothing else goes in. -->
     <div class="composer" bind:this={hostEl}></div>
 
+    {#if viewportDebug}
+      <pre class="debug">{debugReadout}</pre>
+    {/if}
+
     <p class="credit">
       投稿エディタは <a href={EHAGAKI_SITE_URL} target="_blank" rel="noreferrer">eHagaki</a>
       を埋め込んでいます。署名はパスキー（Nosskey）で行われます。
@@ -355,6 +383,24 @@ function setContext(context: { reply: string | null; quotes: string[] }): void {
     --ehagaki-footer-background: var(--bg-subtle);
     --ehagaki-dialog-background: var(--bg);
     --ehagaki-font-family: var(--sans);
+  }
+
+  /* Over the editor and the keyboard both, so it can be read while the
+     keyboard is up — which is the only moment it has anything to say. */
+  .debug {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 200;
+    margin: 0;
+    padding: 0.2rem 0.4rem;
+    background: rgb(0 0 0 / 0.75);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    line-height: 1.3;
+    white-space: pre;
+    pointer-events: none;
   }
 
   .state {
