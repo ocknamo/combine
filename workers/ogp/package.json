@@ -1,0 +1,16 @@
+{
+  "name": "combine-ogp-worker",
+  "private": true,
+  "type": "module",
+  "description": "OGP metadata API for combine's embedded timeline widgets",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260820.1",
+    "typescript": "~6.0.2",
+    "wrangler": "^4.28.0"
+  }
+}

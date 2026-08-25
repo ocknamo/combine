@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["src/**"]
+    "includes": ["src/**", "workers/*/src/**"]
   },
   "linter": {
     "enabled": true,

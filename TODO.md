@@ -84,6 +84,29 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
     3. リアクション(kind7)/リポスト(kind6)/返信(kind1) を組み立て、署名（Nosskey）→ リレーへ publish
   - 不足しているのは「リレーへ publish する処理」。`rx-nostr`（同梱）か `nostr-tools` のどちらで行うか要決定。
 
+## OGP（リンクカード）
+
+※ **API だけ先に作ってある**（`workers/ogp` の Cloudflare Worker。契約は
+`workers/ogp/README.md`）。アプリ側は**まだ何も繋いでいない**——リンクは従来どおりリンクのまま。
+
+- [ ] **埋め込みウィジェットにエンドポイントを渡す**
+  - 上流の受け側は `ogp-endpoint` 属性で、3 要素とも同じ（nostr-cache の
+    `claude/webcomponent-ogp-display-qd624l`。まだ本流には入っていない）。叩き方は
+    `GET {endpoint}?url=<対象>` で、この Worker がそのまま受けられる形。
+  - combine 側は各埋め込み（`HomeView` / `TimelineEmbed` / `PostView`）に 1 行足すのと、
+    `src/custom-elements.d.ts` に属性を宣言するので済む。**上流が本流に入ってから**。
+  - エンドポイントをコードに直書きするかビルド時の設定（`VITE_OGP_ENDPOINT` など）にするかも
+    そのときに決める。未設定なら属性を付けない、が素直な倒し方。
+
+- [ ] **上流の画像 URL 512 文字制限を相談する**
+  - 上流は `image` を `safeText(value, 512)` に通すので、**512 文字を超える署名付きの
+    CDN URL はカードから画像が消える**（`profile.ts` の `MAX_URL_LENGTH` はアバター向けの値）。
+    Worker 側では短くしようがないので、上流で OGP 画像だけ枠を広げてもらうしかない。
+
+- [ ] **Worker をデプロイする**
+  - `cd workers/ogp && npm run deploy`（要 `wrangler login`）。
+  - 自分のオリジンだけに絞るなら `wrangler.jsonc` の `vars` に `ALLOWED_ORIGINS` を足す。
+
 ## リレー設定
 
 - [x] **ユーザーのリレー設定を nosskey.app から取得して使う**（対応済み）
