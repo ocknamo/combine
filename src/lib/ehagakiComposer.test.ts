@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyComposerTheme,
+  COMPOSER_SHADOW_CSS,
   clearEhagakiStorage,
+  composerEditor,
   composerHeight,
   createComposer,
   describeFailure,
@@ -11,6 +14,8 @@ import {
   EHAGAKI_SETTINGS,
   EHAGAKI_STORAGE_PREFIX,
   EHAGAKI_TAG,
+  type EhagakiComposerElement,
+  focusComposerEditor,
   isDisconnected,
   MIN_COMPOSER_HEIGHT,
   postErrorMessage,
@@ -310,5 +315,81 @@ describe('shieldDexieRegistry', () => {
     const page: { [key: symbol]: unknown } = {};
     shieldDexieRegistry(page)();
     expect(DEXIE in page).toBe(false);
+  });
+});
+
+/**
+ * Enough of the element for the two functions that reach into its shadow root.
+ * `null` for `shadowRoot` is the element before it has been connected.
+ */
+function fakeComposer(editor: { focus: () => void } | null, hasShadow = true) {
+  const queried: string[] = [];
+  const element = {
+    shadowRoot: hasShadow
+      ? {
+          querySelector: (selector: string) => {
+            queried.push(selector);
+            return editor;
+          },
+        }
+      : null,
+  };
+  return { queried, element: element as unknown as EhagakiComposerElement };
+}
+
+describe('COMPOSER_SHADOW_CSS', () => {
+  it('colours every part of the mascot', () => {
+    for (const part of ['outer', 'inner', 'face']) {
+      expect(COMPOSER_SHADOW_CSS).toContain(`[data-mascot-part='${part}']`);
+    }
+  });
+
+  it('avoids the palette names eHagaki gives its own meaning inside there', () => {
+    // `--text` / `--bg` / `--border` are combine's too, but the element
+    // redefines all three on its `:host`, so in the shadow tree they are its
+    // values, not combine's. The `--ehagaki-*` tokens carry combine's in.
+    for (const taken of ['var(--text)', 'var(--bg)', 'var(--border)']) {
+      expect(COMPOSER_SHADOW_CSS).not.toContain(taken);
+    }
+  });
+});
+
+describe('applyComposerTheme', () => {
+  it('has nothing to style before the element is connected', () => {
+    const { element } = fakeComposer(null, false);
+    expect(applyComposerTheme(element)).toBe(false);
+  });
+});
+
+describe('composerEditor', () => {
+  it("looks for the editor under eHagaki's own marker for it", () => {
+    const { queried, element } = fakeComposer({ focus: () => {} });
+    composerEditor(element);
+    expect(queried).toHaveLength(1);
+    expect(queried[0]).toContain('[data-post-editor-root]');
+    expect(queried[0]).toContain('contenteditable');
+  });
+
+  it('finds nothing while the element is showing something other than the editor', () => {
+    const { element } = fakeComposer(null);
+    expect(composerEditor(element)).toBe(null);
+  });
+});
+
+describe('focusComposerEditor', () => {
+  it('focuses the editor and says so', () => {
+    let focused = 0;
+    const { element } = fakeComposer({
+      focus: () => {
+        focused += 1;
+      },
+    });
+    expect(focusComposerEditor(element)).toBe(true);
+    expect(focused).toBe(1);
+  });
+
+  it('reports the miss when the editor is not up, so the caller can hold the ask', () => {
+    const { element } = fakeComposer(null);
+    expect(focusComposerEditor(element)).toBe(false);
   });
 });

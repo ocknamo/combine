@@ -10,7 +10,9 @@
  * itself stays mounted for the app's lifetime (see `App.svelte`).
  */
 import { auth } from '../auth.svelte';
+import { setComposeFocusHandler } from '../composeFocus';
 import {
+  applyComposerTheme,
   clearEhagakiStorage,
   composerHeight,
   createComposer,
@@ -18,6 +20,7 @@ import {
   EHAGAKI_SETTINGS,
   EHAGAKI_SITE_URL,
   type EhagakiComposerElement,
+  focusComposerEditor,
   INIT_ERROR_EVENT,
   type InitErrorDetail,
   isDisconnected,
@@ -48,6 +51,8 @@ let remounted = false;
 let builtFor: string | null = null;
 /** Set while the element is still coming up, and applied once it is ready. */
 let pendingContext: { reply: string | null; quotes: string[] } | null = null;
+/** A caret asked for before there was an editor to put it in. */
+let focusWanted = false;
 
 let targetKind = $state<'reply' | 'quote'>('reply');
 let targetId = $state('');
@@ -69,6 +74,9 @@ async function mountComposer(): Promise<void> {
     host.appendChild(element);
     composer = element;
     builtFor = auth.pubkey;
+    // Before the editor's first paint: connecting is what attaches the shadow
+    // root this writes into, and that happened on the line above.
+    applyComposerTheme(element);
     applyHeight();
     await element.whenReady();
     await element.setSettings(EHAGAKI_SETTINGS);
@@ -77,6 +85,15 @@ async function mountComposer(): Promise<void> {
       const context = pendingContext;
       pendingContext = null;
       await element.setContext(context);
+    }
+    // The tap that asked for the caret is long over by now — it was the one
+    // that started this download — so a mobile keyboard will not open here.
+    // Putting the caret in is still what the user asked for, and it saves the
+    // second tap from landing anywhere but the editor. Not if they have since
+    // left the tab: a keyboard on another screen would be a surprise.
+    if (focusWanted) {
+      focusWanted = false;
+      if (active) focusComposerEditor(element);
     }
   } catch (err) {
     // Worth the console line: the message on screen has to stay short, and this
@@ -113,8 +130,23 @@ function teardown(): void {
   composer = null;
   builtFor = null;
   pendingContext = null;
+  focusWanted = false;
   contextLabel = null;
   status = 'idle';
+}
+
+/**
+ * Put the caret in the editor, or note that it was asked for.
+ *
+ * The tab bar calls this straight from its click handler, so the focus lands
+ * while the tap is still in effect and the keyboard comes up with it (see
+ * `TabBar.svelte`). On the first visit there is nothing to focus yet — this is
+ * the tap that starts the download — so the ask is held for `mountComposer`.
+ */
+function focusEditor(): boolean {
+  if (composer && focusComposerEditor(composer)) return true;
+  focusWanted = true;
+  return false;
 }
 
 function applyHeight(): void {
@@ -140,6 +172,13 @@ $effect(() => {
   const shouldMount = active && pubkey !== null && hostEl !== null;
   if (composer && builtFor !== pubkey) teardown();
   if (shouldMount) void mountComposer();
+});
+
+// The tab bar has no reference to this view, and the answer it needs cannot
+// wait for an effect — see `composeFocus.ts`.
+$effect(() => {
+  setComposeFocusHandler(focusEditor);
+  return () => setComposeFocusHandler(null);
 });
 
 // Logging out has to take the composer's storage with it — its draft and the

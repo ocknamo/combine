@@ -198,6 +198,78 @@ export function createComposer(
 }
 
 /**
+ * The mascot's three colours, in combine's palette.
+ *
+ * Everything else combine themes goes through the `--ehagaki-*` tokens
+ * (`ComposeView.svelte`) or through eHagaki's own variables set on the element
+ * (`app.css`). The mascot takes neither: its colours are written onto the SVG
+ * as `fill` presentation attributes, and the branch that would read them from
+ * variables is gated on a class the element only gets in the standalone build
+ * — so in the embed it is always eHagaki's green. A CSS `fill` beats a
+ * presentation attribute, which makes a rule inside the shadow root the only
+ * way to reach it.
+ *
+ * The face reads `--ehagaki-text`, not `--text`: `--text` is one of the names
+ * eHagaki defines on its own `:host`, so inside the shadow tree that name is
+ * eHagaki's. `--ehagaki-text` is combine's value on its way in, and no rule in
+ * there redefines it. `--gold` and `--bg-subtle` collide with nothing.
+ */
+export const COMPOSER_SHADOW_CSS = `
+[data-mascot-part='outer'] { fill: var(--gold); }
+[data-mascot-part='inner'] { fill: var(--bg-subtle); }
+[data-mascot-part='face'] { fill: var(--ehagaki-text); }
+`;
+
+/**
+ * Adopt {@link COMPOSER_SHADOW_CSS} into the element's shadow root.
+ *
+ * Worth calling as soon as the element is connected — the shadow root is
+ * attached synchronously there, so the mascot is combine's colour before the
+ * editor's first paint. An adopted sheet rather than an appended `<style>`
+ * because the element replaces its shadow children when it mounts, and because
+ * appending one would wake the observer it keeps on that subtree.
+ *
+ * `false` means there was nothing to adopt into, which leaves the mascot green.
+ * That is a cosmetic loss, not a broken editor, so nothing retries it.
+ */
+export function applyComposerTheme(element: EhagakiComposerElement): boolean {
+  const root = element.shadowRoot;
+  if (!root) return false;
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(COMPOSER_SHADOW_CSS);
+  root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+  return true;
+}
+
+/**
+ * The editor's text box, inside the element's shadow root.
+ *
+ * There is no focus API to ask instead — neither the Web Component nor the
+ * standalone build has one — so this reaches into upstream's own DOM, which is
+ * private and can be renamed out from under it. `[data-post-editor-root]` is
+ * the steadiest handle on offer: eHagaki matches on that same attribute
+ * internally to decide whether the editor holds focus.
+ *
+ * `null` when the editor is not up: before the bundle has loaded, and while
+ * the element is showing its own login or error screen instead.
+ */
+export function composerEditor(element: EhagakiComposerElement): HTMLElement | null {
+  return (
+    element.shadowRoot?.querySelector<HTMLElement>(
+      "[data-post-editor-root] [contenteditable='true']"
+    ) ?? null
+  );
+}
+
+/** Put the caret in the editor. `false` when there is no editor to put it in. */
+export function focusComposerEditor(element: EhagakiComposerElement): boolean {
+  const editor = composerEditor(element);
+  if (!editor) return false;
+  editor.focus();
+  return true;
+}
+
+/**
  * Drop everything the composer has stored on this origin.
  *
  * For logout: the draft and the account eHagaki considers signed in now live in

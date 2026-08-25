@@ -24,6 +24,14 @@
   - 動画圧縮も未確認。クロスオリジンの worker は上流が対応済み（blob URL 経由）だが、
     実機で通したことはまだ無い。
 
+- [ ] **上流にマスコットの色を埋め込みでも変えられるようにしてもらう**
+  - ヘッダのキャラの色は SVG の `fill` 属性に直書きで、変数を読む分岐が
+    `layoutMode === "viewport"`（スタンドアロン版）でしかクラスの付かない `.custom-accent` に
+    ゲートされている。Web Component では何を設定しても緑のまま。
+  - combine 側はシャドウルートに規則を差し込んで金にした（**対応済み**。ヘッダボタンの赤枠と
+    吹き出しも `app.css` で寄せた。詳細は `EHAGAKI_WEB_COMPONENT.md`）。`--ehagaki-accent-color`
+    に追従してくれれば、この差し込みは要らなくなる。
+
 - [ ] **上流に `F6()` のシャドウルート対応を出す**
   - eHagaki 自身のキーボード補正が Web Component 版で一度も効かない
     （`document.activeElement` が retarget されるため）。詳細は `EHAGAKI_WEB_COMPONENT.md`。
@@ -34,12 +42,12 @@
     経緯は `EHAGAKI_WEB_COMPONENT.md`）。
   - nostr-cache 側を 4.4.2 に寄せれば回避策を消せる。上流の実装依存が減る。
 
-- [ ] **投稿画面を開いたときにエディタへ自動フォーカスする**
-  - 公開 API としては依然として無い（`composer.focus` 相当は Web Component 版にも無い）。
-  - ただし open ShadowRoot なので、中の contenteditable を探して `.focus()` すること自体は
-    できるようになった。上流の DOM 構造に依存するので、やるなら壊れる前提の実装になる。
-  - モバイルはユーザー操作と非同期なフォーカスではソフトキーボードが開かない制約も残る。
-  - → 素直に実現するには **上流へのフォーカス API の要望** が要る。
+- [ ] **上流にフォーカス API（`composer.focus()`）を出す**
+  - フッタの「投稿」を押すとエディタにカーソルが入るのは**対応済み**。open ShadowRoot 越しに
+    `[data-post-editor-root]` の中の contenteditable を掴んで `.focus()` している
+    （経緯と、タップと同じタスクで終わらせる必要がある理由は `EHAGAKI_WEB_COMPONENT.md`）。
+  - 残っているのは**上流の DOM 構造に乗っている**こと。`focus()` が 1 本あれば消える依存。
+  - **キーボードが実際に上がるかは実機で未確認**（本番は iOS Safari。上の「実機で通す」と同じ）。
 
 - [ ] **本文・メンションのプリフィル UI を追加する**
   - `setContext({ content })` を呼ぶだけで実現できる（要素のメソッド直呼び。`reply` / `quotes` は

@@ -1,5 +1,7 @@
 <script lang="ts">
-import { router } from '../router.svelte';
+import { flushSync } from 'svelte';
+import { focusCompose } from '../composeFocus';
+import { type RouteName, router } from '../router.svelte';
 
 const tabs = [
   { path: '/', name: 'home', label: 'ホーム' },
@@ -25,6 +27,33 @@ function onHomeClick(event: MouseEvent): void {
   event.preventDefault();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+/**
+ * Tapping 投稿 opens the editor with the caret already in it, so the mobile
+ * keyboard comes up on that same tap instead of a second one.
+ *
+ * Every step is inside the click handler on purpose. iOS Safari raises the
+ * keyboard only for a `focus()` made while a user gesture is still running,
+ * and letting the anchor navigate would put the move a `hashchange` — a whole
+ * task — away. So the route moves here, `flushSync` gets the view on screen
+ * (until then it is `display: none`, and nothing inside it can take focus),
+ * and the focus follows in the same breath.
+ *
+ * A modified click is left to the browser: on a desktop that is "open in a new
+ * tab", and there is no keyboard to raise there anyway.
+ */
+function onComposeClick(event: MouseEvent): void {
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  router.go('/compose');
+  flushSync();
+  focusCompose();
+}
+
+const clickHandlers: Partial<Record<RouteName, (event: MouseEvent) => void>> = {
+  home: onHomeClick,
+  compose: onComposeClick,
+};
 </script>
 
 <nav aria-label="メインナビゲーション">
@@ -33,7 +62,7 @@ function onHomeClick(event: MouseEvent): void {
       href={`#${tab.path}`}
       class:active={active === tab.name}
       aria-current={active === tab.name ? 'page' : undefined}
-      onclick={tab.name === 'home' ? onHomeClick : undefined}
+      onclick={clickHandlers[tab.name]}
     >
       {#if tab.name === 'home'}
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5" /><path d="M5.5 10.5V20h13v-9.5" /></svg>

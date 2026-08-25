@@ -60,6 +60,11 @@ combine の投稿エディタは eHagaki の埋め込み。iframe（`ehagaki.emb
 - **エラー**: `ehagaki-post-error` の detail は `{ code }` だけで、iframe 時代にあった `message` が無い。
   日本語メッセージは combine 側で持つ（`postErrorMessage`）。`empty_content` は eHagaki 自身が
   UI で言うのでトーストは出さない。
+- **配色**: `--ehagaki-*` で届かない 3 か所（マスコット・ヘッダボタンの赤枠・吹き出し）は
+  シャドウルートへの adopted sheet と `app.css` の `ehagaki-composer { … }` で寄せている
+  （下記「配色を combine に寄せる」）。
+- **フォーカス**: フッタの「投稿」を押すとエディタにカーソルが入る。open な ShadowRoot 越しの
+  `.focus()` で、タップと同じタスクの中で完結させている（下記「投稿タブを押したら…」）。
 
 ## 認証
 
@@ -104,6 +109,83 @@ iframe を直接叩いていて `window.nostr` を生やしていなかったの
 `getPublicKey` をキャッシュから返すのはこのためでもある。eHagaki は復元時にも自動ログイン時にも
 `authenticate()` を呼ぶので、Nosskey の iframe へ往復させると起動のたびに不意のパスキー確認が
 出かねない。
+
+## 配色を combine に寄せる（`--ehagaki-*` で届かないところ）
+
+`--ehagaki-*` トークン（`ComposeView.svelte` の `.composer`）で届くのは背景・文字・枠・リンク・
+アクセントまで。**それでも eHagaki 自身の色のまま残るところが 3 つ**あって、combine の金・
+オリーブの中で緑と赤が浮いていた。**3 つとも対応済み**。届き方が違うので置き場所も分かれている。
+
+### マスコット（`data-mascot-part`）
+
+ヘッダ左のはがきキャラ。色は SVG の `fill` **属性**として直に書かれていて、
+`--mascot-accent-color` などの変数を読む分岐は `.site-icon.custom-accent` というクラスで
+ゲートされている。そのクラスが付く条件が `layoutMode === "viewport"`（＝スタンドアロン版）
+なので、**Web Component ではどう設定しても常にハードコードの緑**（`#3FB57E` /
+`#EDFCF5` / `#4D524F`）になる。
+
+CSS の `fill` プロパティは presentation attribute に勝つので、**シャドウルートの中に規則を
+1 つ入れれば届く**。`ehagakiComposer.ts` の `COMPOSER_SHADOW_CSS` を
+`applyComposerTheme()` が `adoptedStyleSheets` に足している（要素を `appendChild` した直後。
+接続と同時にシャドウルートが張られるので、エディタの初回描画より前に間に合う）。
+
+- **`<style>` の追加ではなく adopted sheet**。要素はマウント時に `replaceChildren()` で
+  シャドウの子を作り直すし、`<style>` を足すと要素がそのサブツリーに張っている
+  MutationObserver（アイコン URL の解決用）を起こす。
+- 面の色に `var(--text)` を使っていないのは、**`--text` がシャドウの中では eHagaki の名前**
+  だから（`:host` で再定義されている）。combine の値を持ち込む口は `--ehagaki-text` の方。
+  `--gold` と `--bg-subtle` は衝突しないのでそのまま読める。
+
+### ヘッダボタンの赤枠と、キャラの吹き出し
+
+こちらは変数で足りる。ただし**要素そのものに書く必要がある**：eHagaki は自分の `:host` で
+これらを定義していて、**自分で宣言した値は継承してきた値に勝つ**ので、`.composer`（親の div）
+に置いても効かない。ホスト文書からの規則なら勝つ（外側のツリーが `:host` に優先する）ので、
+`app.css` に `ehagaki-composer { … }` を置いた（`nostr-timeline` の隣、同じやり方）。
+
+- `--hagaki`（`light-dark(hsl(0,77%,56%), …)`）→ `--gold`。eHagaki の「はがき」の赤で、
+  ヘッダボタンの枠線に出る。combine では赤はエラー色なので、そのままだと**壊れているように
+  見える**。
+- `--message-flavor-bg` / `-color` / `-border` → `--bg-subtle` / `--gold-strong` / `--olive`。
+  マスコットの隣に出る一言（flavor）の吹き出し。既定は緑。
+
+どちらも**公開トークンではない上流の内部名**なので、改名されれば eHagaki 本来の色に戻る。
+戻るだけで壊れはしない。
+
+## 投稿タブを押したらエディタにカーソルが入る（対応済み）
+
+フッタの「投稿」を押したときに、エディタにカーソルが入ってモバイルのキーボードがそのまま
+上がるようにした。以前は画面が開くだけで、本文をもう一度タップする必要があった。
+
+要素にフォーカス API は無い（スタンドアロン版にも無い）ので、**open な ShadowRoot 越しに
+中の contenteditable を探して `.focus()` する**。目印は `[data-post-editor-root]` ——
+eHagaki 自身が「エディタにフォーカスがあるか」の判定に使っているのと同じ属性なので、
+中では一番安定した取っ手になる（`ehagakiComposer.ts` の `composerEditor` /
+`focusComposerEditor`）。改名されればフォーカスが効かなくなるだけで、これは「機能が無い」に
+戻るのと同じ。
+
+**難しいのは色ではなく時間**で、全部を**タップと同じタスクの中**で終わらせないといけない。
+iOS Safari はユーザー操作が続いている間の `focus()` にしかキーボードを出さず、`hashchange` は
+1 タスク後に届くので、アンカーに任せると間に合わない。そこで `TabBar` の click ハンドラで
+`preventDefault` してから:
+
+1. `router.go('/compose')` —— `location.hash` を書くだけでなく、**その場で `current` も更新する**
+   ようにした（`router.svelte.ts`）。`hashchange` 待ちでは 1 タスク遅い。
+2. `flushSync()` —— 隠れているビューは `display: none` で、その中は**フォーカスを受け取れない**。
+   先に画面へ出す。
+3. `focusCompose()` —— `TabBar` と `ComposeView` は `App.svelte` の下で隣り合っているだけで
+   参照が無いので、`composeFocus.ts` のモジュールスコープのフックを介す。返り値で
+   「実際に入ったか」が分かる。
+
+修飾キー付きのクリック（新しいタブで開く）はブラウザに任せる。
+
+**初回のタップだけは間に合わない。** そのタップが 2.7MB のダウンロードを始めるタップなので、
+フォーカスする先がまだ無い。その場合は `ComposeView` が要求を覚えておいて、
+`whenReady()` のあとに入れる（タブを離れていたら入れない —— 別の画面でキーボードが
+上がるのは事故）。キーボードは上がらないが、次のタップが必ず本文に落ちる。
+
+`auto-login` を付けている都合で `whenReady()` は認証と bootstrap の後に解決するので、
+初回のカーソルは**エディタが見えてから少し遅れて**入る。
 
 ## 信頼境界
 
@@ -305,10 +387,15 @@ kb top 49.0 h 322.0 bottom 371.0 w 411
 - [ ] **実機確認**。モバイルのキーボード挙動（`composerHeight` の visualViewport 補正）と
   動画圧縮を iOS Safari / Android Chrome で通す。`auto-login` も実機で無言に繋がるかを見る
   （手元では確認していない。理屈の上ではシムがキャッシュから答えるのでプロンプトは無い）。
+- [ ] **フォーカスでキーボードが上がるかの実機確認**。手元では Playwright の Chromium で
+  「タップ → 同じタスクの中でエディタにフォーカスが入る」ところまで確認してある
+  （実際にアプリをビルドして、タブをタップして `shadowRoot.activeElement` が
+  contenteditable になることを見た）。**ソフトキーボードが実際に上がるかは実機でしか見られない。**
+  iOS Safari が本番。
 - [ ] **Dexie のバージョンを上流で揃える**（上記）。揃えば `shieldDexieRegistry` は削除できる。
 - [ ] **データ移行は無い**。iframe 時代の下書き・設定は引き継がれない（別オリジンの storage）。
-- [ ] `composer.focus` 相当は Web Component 版にも無い。TODO の「投稿画面を開いたときに
-  エディタへ自動フォーカスする」は移行しても解決しない。
+- [ ] `composer.focus` 相当は Web Component 版にも無い。いまは ShadowRoot 越しに
+  contenteditable を掴んでいて、これは上流の DOM 構造に乗っている（下記「上流への要望」）。
 
 ## 上流への要望（本命）
 
@@ -322,6 +409,21 @@ eHagaki 自身のキーボード補正が一度も適用されない（詳細は
 なお `overlaysContent = true` を立てるのはホストのページ全体に効く副作用なので、
 **属性か設定でオフにできる**とさらに良い（ホスト側が自前でレイアウトを持っている場合、
 `visualViewport` が縮まなくなるのは想定外の挙動になる）。
+
+### フォーカス API（`composer.focus()`）
+
+いまは combine が open な ShadowRoot を辿って `[data-post-editor-root]` の中の contenteditable を
+`.focus()` している（上記「投稿タブを押したら…」）。**動くが、上流の DOM 構造に乗っている**。
+`focus()` が 1 本あれば済む話で、埋め込み側にとっては「タップ 1 回でキーボードまで出る」か
+「本文をもう一度タップさせる」かの差になる。同期的に呼べること（iOS Safari の制約）と、
+エディタがまだ無いときに黙って何もしないことだけが要件。
+
+### マスコットの色
+
+`.site-icon.custom-accent` が付く条件が `layoutMode === "viewport"` なので、Web Component では
+`--mascot-*` を設定しても読まれず、緑のハードコードのままになる（上記「配色を combine に寄せる」）。
+`--ehagaki-accent-color` を渡している埋め込みなら、マスコットもそれに追従してよいはず。
+いまは combine 側でシャドウルートに規則を差し込んで回避している。
 
 
 ### NIP-07 の自動ログイン（**入った**）
