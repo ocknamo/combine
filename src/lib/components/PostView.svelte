@@ -28,8 +28,14 @@ import {
   NOSTR_CACHE_PROFILE_FRESHNESS,
   relaysAttr,
 } from '../nostrCache';
-import { navigateOnAction } from '../postAction';
-import { AUTHOR_ACTION_ID, NOTE_ACTION_ID, normalizePostRef } from '../postRef';
+import { handlePostAction } from '../postAction';
+import {
+  AUTHOR_ACTION_ID,
+  MATERIAL_ICONS,
+  NOTE_ACTION_ID,
+  normalizePostRef,
+  POST_PAGE_ACTIONS_ATTR,
+} from '../postRef';
 import BackBar from './BackBar.svelte';
 
 let { id = null }: { id?: string | null } = $props();
@@ -70,16 +76,19 @@ const relays = $derived(relaysAttr(cacheRelay.upstreamRelays));
   {:else if !ready || !cacheRelay.resolved}
     <p class="empty">読み込み中…</p>
   {:else}
-    <!-- No `actions`: the 詳細 button the timelines carry would only lead back
-         to the page it was pressed on. `author-action` and `note-action` are a
-         different matter — they add no row to the card, and everything they
-         point at (the author, every author in the reply tree, and the posts
-         this one quotes) is somewhere else to go. -->
+    <!-- The timelines' row minus 詳細, which would only lead back to the page it
+         was pressed on. Only the post itself carries it: the widget's reply
+         tree takes no `actions`, so the replies under it have none.
+         `author-action` and `note-action` add no row at all, and everything
+         they point at (the author, every author in the reply tree, and the
+         posts this one quotes) is somewhere else to go. -->
     <nostr-post
-      use:navigateOnAction
+      use:handlePostAction
       event-id={ref}
+      actions={POST_PAGE_ACTIONS_ATTR}
       author-action={AUTHOR_ACTION_ID}
       note-action={NOTE_ACTION_ID}
+      material-icons={MATERIAL_ICONS}
       {relays}
       db-name={NOSTR_CACHE_DB_NAME}
       profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}

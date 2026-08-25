@@ -113,7 +113,7 @@ nostr-post {
   --nt-quote-bar: var(--gold);
   --nt-media-bg: var(--bg-subtle);
 
-  /* The 詳細 button under every post in a list (see `lib/postRef.ts`). */
+  /* The 返信・リポスト・共有・詳細 buttons under every post (`lib/postRef.ts`). */
   --nt-action-fg: var(--text-muted);
   --nt-action-hover-fg: var(--gold-strong);
   --nt-action-hover-bg: var(--bg-subtle);

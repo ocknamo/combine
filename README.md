@@ -43,14 +43,28 @@ eHagaki は combine が `window.nostr` に生やす NIP-07 シム（`src/lib/nip
   - プロフィール（kind 0）は 1 時間の鮮度ウィンドウが効き、Header とプロフィール画面が
     同じ pubkey を取り直さなくなる
   - nostr-cache に到達できない環境では自動的に上流リレー直結へフォールバックする
+- 投稿へのアクション（返信・リポスト・共有・詳細）
+  - 埋め込みウィジェットの各投稿の下にアイコンボタンが並ぶ。nostr-cache の `actions` 属性で
+    描画され、タップは `nostr-timeline:action` として届く（`src/lib/postRef.ts` /
+    `src/lib/postAction.ts`）。一覧（ホーム・通知・プロフィール・検索結果）と個別投稿画面の
+    本体に出る（個別投稿画面では「詳細」を除いた 3 つ。返信ツリーの各返信には出ない）
+  - **返信**は eHagaki の投稿画面を返信先つきで開く。押した投稿を `nevent1…`（著者つき）に
+    して `composeContext` に置き、compose タブへ移ると `ComposeView` が `setContext({ reply })`
+    に流す（`src/lib/composeContext.svelte.ts`）
+  - **リポスト**は combine 自身が kind 6（kind 1 以外は kind 16 ＋ `k` タグ。NIP-18）を組み立て、
+    Nosskey で署名して**ユーザーの write リレー**へ publish する（`src/lib/repost.ts` /
+    `src/lib/publish.ts`）。combine が自分でイベントを送る唯一の経路で、`getRelays()` の
+    write リレーはここで初めて使われる。確認は nosskey.app の同意ダイアログが兼ねる
+  - **共有**は個別投稿画面の URL（`…#/post/note1…`）を `navigator.share` へ。無い環境では
+    クリップボードへ（プロフィールの共有と同じ `src/lib/share.ts`）
+  - 通知タブのリポスト・リアクション・Zap では、そのイベント自体ではなく `e` タグの指す
+    元の投稿が対象になる（返信・リポスト・共有・詳細のいずれも）
+  - ボタンの定義は一覧全体で 1 つなので、「リポスト済み」の表示や投稿ごとの無効化はできない
 - 個別投稿画面（`#/post/<note1 / nevent1 / naddr1 / hex>`）
   - `nostr-post` が本文を省略なしで描画し、リアクション（kind 7）を絵文字ごとに集計して並べる
-  - 一覧の各投稿に出る「詳細」ボタンから開く。ボタンは nostr-cache の `actions` 属性で
-    描画され、タップは `nostr-timeline:action` として届く（`src/lib/postRef.ts`）
+  - 一覧の各投稿に出る「詳細」ボタンから開く（上記のアクション行）
   - アイコンは Material Symbols（`material-icons="outlined"`）。nostr-cache が
     Google Fonts から該当スタイルシートを読み込む
-  - 通知タブのリポスト・リアクション・Zap では、そのイベント自体ではなく `e` タグの指す
-    元の投稿を開く
   - **本文中に埋め込まれた引用投稿のカードをタップしても、その投稿の画面が開く**。
     nostr-cache の `note-action` 属性で押せるようになり、タップは「詳細」ボタンと同じ
     `nostr-timeline:action` として、引用された側のイベントを載せて届く（`src/lib/postRef.ts`）
@@ -67,6 +81,8 @@ eHagaki は combine が `window.nostr` に生やす NIP-07 シム（`src/lib/nip
     （自分のアイコンをタップして開いた `#/user/<自分>` は自分のページなので出る。
     そのときは戻るバーの見出しも「あなた」になる）
 - 投稿・返信・引用（eHagaki の Web Component 埋め込み）
+  - 返信先・引用先は投稿カードの「返信」ボタンから入るほか、パネルに note1 / nevent1 を
+    直接入れても設定できる
   - 要素は compose タブに初めて入ったときに組み立て、以後は保持する。数 MB のエディタなので
     アプリ起動時には読み込まない（`src/lib/components/ComposeView.svelte`）
   - 下書き・設定は combine のオリジンに保存される。ログアウトすると消す
