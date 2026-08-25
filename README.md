@@ -88,7 +88,20 @@ npm run build        # 本番ビルド
 npm run check        # svelte-check + tsc
 npm run lint         # biome
 npm run format       # biome フォーマット
-npm run test         # vitest
+npm run test         # vitest（workers/ogp のテストもここで走る）
+```
+
+`workers/ogp` はリンクカード用に OGP メタデータを返す Cloudflare Workers の API
+（`GET /ogp?url=…`）。**まだアプリからは使っていない**——アプリ側で使うには、埋め込み
+ウィジェットにこのエンドポイントを渡す必要がある。契約と設計は `workers/ogp/README.md`。
+デプロイ単位が別なので依存も別にしてある。
+
+```bash
+cd workers/ogp
+npm install
+npm run dev          # http://localhost:8787/ogp?url=…
+npm run typecheck
+npm run deploy       # 要 wrangler login
 ```
 
 ## ライセンス

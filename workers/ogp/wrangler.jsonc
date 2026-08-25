@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "combine-ogp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "observability": { "enabled": true },
+  "vars": {
+    // Seconds a hit is kept, at the edge and in the browser. OGP rarely changes
+    // and a stale card is harmless, so this is generous on purpose.
+    "CACHE_TTL": "3600",
+    "ERROR_CACHE_TTL": "300"
+    // "ALLOWED_ORIGINS": "https://ocknamo.github.io"
+  }
+}
