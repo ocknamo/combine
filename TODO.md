@@ -90,17 +90,18 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
 `workers/ogp/README.md`）。アプリ側は**まだ何も繋いでいない**——リンクは従来どおりリンクのまま。
 
 - [ ] **埋め込みウィジェットにエンドポイントを渡す**
-  - 渡し方（属性名・値の形）は nostr-cache 側の実装次第なので、そちらが決まってから。
-    combine 側は各埋め込み（`HomeView` / `TimelineEmbed` / `PostView`）に 1 行足すのと、
-    `src/custom-elements.d.ts` に属性を宣言するので済むはず。
+  - 上流の受け側は `ogp-endpoint` 属性で、3 要素とも同じ（nostr-cache の
+    `claude/webcomponent-ogp-display-qd624l`。まだ本流には入っていない）。叩き方は
+    `GET {endpoint}?url=<対象>` で、この Worker がそのまま受けられる形。
+  - combine 側は各埋め込み（`HomeView` / `TimelineEmbed` / `PostView`）に 1 行足すのと、
+    `src/custom-elements.d.ts` に属性を宣言するので済む。**上流が本流に入ってから**。
   - エンドポイントをコードに直書きするかビルド時の設定（`VITE_OGP_ENDPOINT` など）にするかも
     そのときに決める。未設定なら属性を付けない、が素直な倒し方。
 
-- [ ] **nostr-cache 側の OGP カード対応**
-  - 上流に必要なのは「本文中のリンクを見つけたら `${endpoint}?url=<リンク>` を叩いて、
-    返った `title` / `description` / `image` でカードを描く」だけ。エラーはリンクのまま倒す。
-  - リクエスト数は上流の作り次第（1 投稿に複数リンクがあれば複数回）。Worker 側は
-    リンク単位でエッジキャッシュに載るので、同じリンクなら何人が開いても取得は 1 回。
+- [ ] **上流の画像 URL 512 文字制限を相談する**
+  - 上流は `image` を `safeText(value, 512)` に通すので、**512 文字を超える署名付きの
+    CDN URL はカードから画像が消える**（`profile.ts` の `MAX_URL_LENGTH` はアバター向けの値）。
+    Worker 側では短くしようがないので、上流で OGP 画像だけ枠を広げてもらうしかない。
 
 - [ ] **Worker をデプロイする**
   - `cd workers/ogp && npm run deploy`（要 `wrangler login`）。

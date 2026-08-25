@@ -31,6 +31,27 @@ export interface OgpMetadata {
  */
 type Attributes = Record<string, string>;
 
+/**
+ * How much of each field is worth passing on.
+ *
+ * A page's `content=` is unbounded and written by whoever wrote the page, so
+ * something has to bound it — and the ceiling that matters is the reader's, not
+ * ours. nostr-cache's client *rejects* any field over 4096 characters outright
+ * rather than clipping it, and drops a whole response body over 64K, so an
+ * article with a runaway `og:title` would otherwise cost the card entirely.
+ * These sit above what any consumer renders (that client shows 200 / 400 / 100)
+ * and far below where it starts refusing things.
+ */
+const LIMITS = {
+  title: 300,
+  description: 1000,
+  siteName: 200,
+  imageAlt: 300,
+  type: 100,
+  /** URLs are dropped rather than clipped — half a URL points nowhere. */
+  url: 2048,
+} as const;
+
 const NAMED_ENTITIES: Record<string, string> = {
   amp: '&',
   lt: '<',
@@ -62,11 +83,18 @@ export function decodeEntities(value: string): string {
   });
 }
 
-/** Collapse the whitespace a hand-wrapped `content=` attribute carries. */
-function clean(value: string | undefined): string | null {
+/**
+ * Collapse the whitespace a hand-wrapped `content=` attribute carries, and clip
+ * the result to what a card can use.
+ *
+ * The ellipsis is deliberate: a consumer that clips again should be clipping
+ * text that already says it was cut, not silently losing the difference.
+ */
+function clean(value: string | undefined, max = Number.POSITIVE_INFINITY): string | null {
   if (value === undefined) return null;
   const text = decodeEntities(value).replace(/\s+/g, ' ').trim();
-  return text === '' ? null : text;
+  if (text === '') return null;
+  return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
 const ATTRIBUTE = /([a-z_:][-a-z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
@@ -100,7 +128,8 @@ function metadataSection(html: string): string {
 function absolute(value: string | null, base: string): string | null {
   if (value === null) return null;
   try {
-    return new URL(value, base).href;
+    const { href } = new URL(value, base);
+    return href.length > LIMITS.url ? null : href;
   } catch {
     return null;
   }
@@ -152,9 +181,16 @@ export function parseOgp(html: string, fetchedUrl: string): OgpMetadata {
     ?.map(attributes)
     .find((attrs) => (attrs['rel'] ?? '').toLowerCase().split(/\s+/).includes('canonical'));
 
-  const title = clean(og['og:title']) ?? clean(twitter['twitter:title']) ?? clean(titleTag?.[1]);
+  const title =
+    clean(og['og:title'], LIMITS.title) ??
+    clean(twitter['twitter:title'], LIMITS.title) ??
+    clean(titleTag?.[1], LIMITS.title);
   const description =
-    clean(og['og:description']) ?? clean(twitter['twitter:description']) ?? clean(metaDescription);
+    clean(og['og:description'], LIMITS.description) ??
+    clean(twitter['twitter:description'], LIMITS.description) ??
+    clean(metaDescription, LIMITS.description);
+  // URL candidates go in unclipped: `absolute` drops one that is too long
+  // rather than passing on a truncated address that still parses.
   const image =
     clean(og['og:image:secure_url']) ??
     clean(og['og:image:url']) ??
@@ -167,8 +203,10 @@ export function parseOgp(html: string, fetchedUrl: string): OgpMetadata {
     title,
     description,
     image: absolute(image, fetchedUrl),
-    imageAlt: clean(og['og:image:alt']) ?? clean(twitter['twitter:image:alt']),
-    siteName: clean(og['og:site_name']),
-    type: clean(og['og:type']),
+    imageAlt:
+      clean(og['og:image:alt'], LIMITS.imageAlt) ??
+      clean(twitter['twitter:image:alt'], LIMITS.imageAlt),
+    siteName: clean(og['og:site_name'], LIMITS.siteName),
+    type: clean(og['og:type'], LIMITS.type),
   };
 }

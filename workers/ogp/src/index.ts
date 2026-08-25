@@ -55,7 +55,15 @@ const DEFAULT_USER_AGENT =
   'combine-ogp/1.0 (+https://github.com/ocknamo/combine; link preview fetcher)';
 /** A page's metadata lives in its head; the rest is not worth the bandwidth. */
 const MAX_BYTES = 256 * 1024;
-const TIMEOUT_MS = 6000;
+/**
+ * How long the target gets to answer.
+ *
+ * Under the caller's own patience on purpose: nostr-cache's widget abandons the
+ * request at 5s, so a longer budget here would spend the time and then have
+ * nowhere to deliver the answer. Giving up first means the caller gets a real
+ * `timeout` — and the edge keeps serving what did succeed.
+ */
+const TIMEOUT_MS = 4000;
 
 type ErrorCode =
   | TargetUrlError

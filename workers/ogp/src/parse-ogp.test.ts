@@ -101,6 +101,30 @@ describe('parseOgp', () => {
     expect(parseOgp(html, BASE).title).toBe('本物');
   });
 
+  it('clips a field to what a card can use, and says it clipped', () => {
+    // The consumer's limit is the one that matters: nostr-cache's widget throws
+    // out a field over 4096 characters rather than clipping it, so a runaway
+    // title has to be cut here or it costs the whole card.
+    const metadata = parseOgp(
+      page(`
+        <meta property="og:title" content="${'あ'.repeat(5000)}">
+        <meta property="og:description" content="${'い'.repeat(5000)}">
+        <meta property="og:site_name" content="${'う'.repeat(500)}">
+      `),
+      BASE
+    );
+    expect(metadata.title).toBe(`${'あ'.repeat(300)}…`);
+    expect(metadata.description).toBe(`${'い'.repeat(1000)}…`);
+    expect(metadata.siteName).toBe(`${'う'.repeat(200)}…`);
+  });
+
+  it('drops an absurdly long URL rather than half of one', () => {
+    const long = `https://cdn.example.com/${'a'.repeat(3000)}.png`;
+    const metadata = parseOgp(page(`<meta property="og:image" content="${long}">`), BASE);
+    // Clipping would leave an address that still parses and points elsewhere.
+    expect(metadata.image).toBeNull();
+  });
+
   it('drops an empty value rather than inventing one', () => {
     const metadata = parseOgp(
       page('<meta property="og:title" content="   "><meta property="og:image" content="">'),
