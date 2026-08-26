@@ -145,4 +145,14 @@ describe('decodeEntities', () => {
   it('leaves an unknown entity as written', () => {
     expect(decodeEntities('&notanentity; &copy;')).toBe('&notanentity; &copy;');
   });
+
+  it('leaves a code point that names no character alone rather than throwing', () => {
+    // `String.fromCodePoint` throws above U+10FFFF, and the number comes from
+    // the page — an unparseable title must still cost only the title.
+    expect(decodeEntities('&#x110000;')).toBe('&#x110000;');
+    expect(decodeEntities('&#4294967295;')).toBe('&#4294967295;');
+    expect(parseOgp(page('<meta property="og:title" content="&#x110000;">'), BASE).title).toBe(
+      '&#x110000;'
+    );
+  });
 });

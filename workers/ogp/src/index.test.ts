@@ -115,6 +115,60 @@ describe('handleRequest', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('vets every hop of a redirect, not just the URL asked for', async () => {
+    // The guard would be worth nothing otherwise: any public page could point
+    // the fetch at the metadata service and read the answer back out.
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'http://169.254.169.254/latest/meta-data/' },
+      })
+    );
+    const refused = await handleRequest(
+      ask('https://example.com/redirect'),
+      {},
+      stubContext(),
+      stubCache()
+    );
+    expect(refused.status).toBe(403);
+    await expect(refused.json()).resolves.toMatchObject({ error: 'blocked_host' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('follows a redirect to another public page', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 301, headers: { location: '/moved' } }))
+      .mockResolvedValueOnce(html(PAGE));
+
+    const response = await handleRequest(
+      ask('https://example.com/old'),
+      {},
+      stubContext(),
+      stubCache()
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://example.com/moved');
+    await expect(response.json()).resolves.toMatchObject({
+      requestedUrl: 'https://example.com/old',
+      title: '記事タイトル',
+      // Relative paths resolve against the page that answered, not the one asked for.
+      image: 'https://example.com/hero.png',
+    });
+  });
+
+  it('gives up on a redirect loop', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(null, { status: 302, headers: { location: 'https://example.com/loop' } })
+    );
+    const response = await handleRequest(
+      ask('https://example.com/loop'),
+      {},
+      stubContext(),
+      stubCache()
+    );
+    expect(response.status).toBe(502);
+    expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(6);
+  });
+
   it('reports what went wrong upstream', async () => {
     fetchMock.mockResolvedValue(new Response('nope', { status: 503 }));
     const failed = await handleRequest(

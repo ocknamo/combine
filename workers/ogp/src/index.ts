@@ -64,6 +64,10 @@ const MAX_BYTES = 256 * 1024;
  * `timeout` — and the edge keeps serving what did succeed.
  */
 const TIMEOUT_MS = 4000;
+/** Redirect statuses worth following; anything else 3xx has no `Location`. */
+const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
+/** Hops allowed before a redirect chain is called a loop. */
+const MAX_REDIRECTS = 5;
 
 type ErrorCode =
   | TargetUrlError
@@ -250,21 +254,43 @@ type FetchResult =
   | { ok: false; error: ErrorCode; status?: number };
 
 async function fetchMetadata(url: URL, env: Env): Promise<FetchResult> {
+  let current = url;
   let response: Response;
-  try {
-    response = await fetch(url.href, {
-      method: 'GET',
-      headers: {
-        'user-agent': env.USER_AGENT ?? DEFAULT_USER_AGENT,
-        accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1',
-        'accept-language': 'ja,en;q=0.8',
-      },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-  } catch (error) {
-    const timedOut = error instanceof Error && /timeout|abort/i.test(error.name + error.message);
-    return { ok: false, error: timedOut ? 'timeout' : 'fetch_failed' };
+  for (let hop = 0; ; hop += 1) {
+    try {
+      response = await fetch(current.href, {
+        method: 'GET',
+        headers: {
+          'user-agent': env.USER_AGENT ?? DEFAULT_USER_AGENT,
+          accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1',
+          'accept-language': 'ja,en;q=0.8',
+        },
+        // Followed by hand so every hop goes through `parseTargetUrl` too:
+        // `follow` would let a public page redirect the fetch to a host the
+        // guard exists to refuse, which is the open-proxy this must not be.
+        redirect: 'manual',
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (error) {
+      const timedOut = error instanceof Error && /timeout|abort/i.test(error.name + error.message);
+      return { ok: false, error: timedOut ? 'timeout' : 'fetch_failed' };
+    }
+
+    const location = REDIRECT_STATUS.has(response.status) ? response.headers.get('location') : null;
+    if (location === null) break;
+    // Nothing below reads a redirect's body.
+    await response.body?.cancel().catch(() => {});
+    if (hop >= MAX_REDIRECTS) return { ok: false, error: 'fetch_failed' };
+
+    let next: URL;
+    try {
+      next = new URL(location, current.href);
+    } catch {
+      return { ok: false, error: 'invalid_url' };
+    }
+    const target = parseTargetUrl(next.href);
+    if (!target.ok) return { ok: false, error: target.error };
+    current = target.url;
   }
 
   if (!response.ok) {
@@ -288,9 +314,9 @@ async function fetchMetadata(url: URL, env: Env): Promise<FetchResult> {
     return { ok: false, error: 'fetch_failed' };
   }
 
-  // `response.url` is the URL after redirects, which is what relative image
-  // paths and a relative canonical link resolve against.
-  const fetchedUrl = response.url || url.href;
+  // The URL the HTML actually came from, which is what relative image paths and
+  // a relative canonical link resolve against.
+  const fetchedUrl = response.url || current.href;
   const metadata = parseOgp(decodeHtml(bytes, contentType), fetchedUrl);
   return {
     ok: true,

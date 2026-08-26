@@ -63,6 +63,18 @@ const NAMED_ENTITIES: Record<string, string> = {
 };
 
 /**
+ * One numeric character reference, or `null` when it names no character.
+ *
+ * `String.fromCodePoint` throws above U+10FFFF, and the number in a `&#…;` is
+ * whatever the page wrote — so it is checked rather than trusted. Anything out
+ * of range is left as written, the same as an unknown named entity.
+ */
+function fromCodePoint(code: number): string | null {
+  if (!Number.isInteger(code) || code < 0 || code > 0x10ffff) return null;
+  return String.fromCodePoint(code);
+}
+
+/**
  * Decode the entities that actually show up in title and description text.
  *
  * Not a full entity table: everything beyond these is rare in metadata, and an
@@ -71,14 +83,8 @@ const NAMED_ENTITIES: Record<string, string> = {
 export function decodeEntities(value: string): string {
   return value.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, name: string) => {
     const key = name.toLowerCase();
-    if (key.startsWith('#x')) {
-      const code = Number.parseInt(key.slice(2), 16);
-      return Number.isNaN(code) ? match : String.fromCodePoint(code);
-    }
-    if (key.startsWith('#')) {
-      const code = Number.parseInt(key.slice(1), 10);
-      return Number.isNaN(code) ? match : String.fromCodePoint(code);
-    }
+    if (key.startsWith('#x')) return fromCodePoint(Number.parseInt(key.slice(2), 16)) ?? match;
+    if (key.startsWith('#')) return fromCodePoint(Number.parseInt(key.slice(1), 10)) ?? match;
     return NAMED_ENTITIES[key] ?? match;
   });
 }
