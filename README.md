@@ -52,9 +52,13 @@ eHagaki は combine が `window.nostr` に生やす NIP-07 シム（`src/lib/nip
     して `composeContext` に置き、compose タブへ移ると `ComposeView` が `setContext({ reply })`
     に流す（`src/lib/composeContext.svelte.ts`）
   - **リポスト**は combine 自身が kind 6（kind 1 以外は kind 16 ＋ `k` タグ。NIP-18）を組み立て、
-    Nosskey で署名して**ユーザーの write リレー**へ publish する（`src/lib/repost.ts` /
-    `src/lib/publish.ts`）。combine が自分でイベントを送る唯一の経路で、`getRelays()` の
-    write リレーはここで初めて使われる。確認は nosskey.app の同意ダイアログが兼ねる
+    Nosskey で署名して**ブラウザ内リレー 1 本**へ publish する（`src/lib/repost.ts` /
+    `src/lib/publish.ts`）。nostr-cache は write-through なので、受けたイベントを
+    IndexedDB に入れて `OK` を返し、上流リレーへはリレー自身が流す。キャッシュに載る分、
+    自分の画面にはリレーから返ってくるのを待たずに出る。ブラウザ内リレーが無い環境では
+    読み込みと同じくフォールバックし、ユーザーの write リレーへ直接送る
+    （`getRelays()` の write リレーはここで初めて使われる）。
+    確認は nosskey.app の同意ダイアログが兼ねる
   - **共有**は個別投稿画面の URL（`…#/post/note1…`）を `navigator.share` へ。無い環境では
     クリップボードへ（プロフィールの共有と同じ `src/lib/share.ts`）
   - 通知タブのリポスト・リアクション・Zap では、そのイベント自体ではなく `e` タグの指す

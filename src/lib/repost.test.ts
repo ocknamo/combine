@@ -5,10 +5,12 @@ const auth = {
   getWriteRelays: vi.fn(async () => ['wss://write.example']),
   signEvent: vi.fn(async (event: Record<string, unknown>) => ({ ...event, id: 'e'.repeat(64) })),
 };
-const publishEvent = vi.fn(async () => ({ accepted: ['wss://write.example'], rejected: [] }));
+const cacheRelay = { interceptUrl: null as string | null };
+const publishEvent = vi.fn(async () => ({ accepted: ['ws://cache.invalid'], rejected: [] }));
 const show = vi.fn();
 
 vi.mock('./auth.svelte', () => ({ auth }));
+vi.mock('./cacheRelay.svelte', () => ({ cacheRelay }));
 vi.mock('./publish', () => ({ publishEvent }));
 vi.mock('./toast.svelte', () => ({ toast: { show } }));
 
@@ -21,6 +23,7 @@ const ME = 'c'.repeat(64);
 beforeEach(() => {
   vi.clearAllMocks();
   auth.pubkey = ME;
+  cacheRelay.interceptUrl = 'ws://cache.invalid';
 });
 
 describe('buildRepost', () => {
@@ -55,14 +58,24 @@ describe('buildRepost', () => {
 });
 
 describe('repost', () => {
-  it('signs and publishes to the write relays', async () => {
+  it('signs and publishes through the cache relay, which writes through', async () => {
     await repost({ id: ID, pubkey: AUTHOR, kind: 1 });
 
     expect(auth.signEvent).toHaveBeenCalledWith(expect.objectContaining({ kind: 6 }));
     expect(publishEvent).toHaveBeenCalledWith(expect.objectContaining({ id: 'e'.repeat(64) }), [
-      'wss://write.example',
+      'ws://cache.invalid',
     ]);
+    // The cache relay forwards upstream itself, so the write relays are not
+    // asked for and nothing is sent to them twice.
+    expect(auth.getWriteRelays).not.toHaveBeenCalled();
     expect(show).toHaveBeenCalledWith('リポストしました');
+  });
+
+  it('falls back to the write relays when no cache relay is running', async () => {
+    cacheRelay.interceptUrl = null;
+    await repost({ id: ID, pubkey: AUTHOR, kind: 1 });
+
+    expect(publishEvent).toHaveBeenCalledWith(expect.anything(), ['wss://write.example']);
   });
 
   it('asks for a login instead of signing when there is none', async () => {
@@ -76,7 +89,7 @@ describe('repost', () => {
   it('reports a repost no relay took', async () => {
     publishEvent.mockResolvedValueOnce({
       accepted: [],
-      rejected: [{ relay: 'wss://write.example', reason: 'blocked' }],
+      rejected: [{ relay: 'ws://cache.invalid', reason: 'blocked' }],
     } as never);
     vi.spyOn(console, 'error').mockImplementation(() => {});
     await repost({ id: ID, pubkey: AUTHOR, kind: 1 });

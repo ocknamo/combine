@@ -125,7 +125,8 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
     しており（combine は `window.nostr` 経由で pubkey と `signEvent` を出すだけ、publish と
     publish 先リレーは eHagaki 側）、Web Component にもリレーを渡す口が無い（eHagaki は
     kind 10002 を自前で取りに行く。`getRelays` も呼ばない）。
-    `getRelays()` の write リレーは**リポストの publish で使い始めた**（`src/lib/repost.ts`）が、
+    `getRelays()` の write リレーは**リポストのフォールバック経路で使い始めた**
+    （`src/lib/repost.ts`。通常はブラウザ内リレーの write-through に任せる）が、
     eHagaki に委譲している通常の投稿には届かないまま。
     ユーザーの write リレーで publish させるには **上流への要望**か、`configureHostOwned`
     （`EHAGAKI_WEB_COMPONENT.md`。publish もアップロードも自前になるので採っていない）が要る。
@@ -196,10 +197,15 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
 ### publish 経路が要る（ここが本丸）
 
 - [x] **署名済みイベントをリレーへ publish する処理**（対応済み）
-  - `auth.signEvent` で署名し、`publishEvent`（`src/lib/publish.ts`）が write リレーへ
-    `["EVENT", ev]` を送って `["OK", id, true]` を待つ。1 本でも受理されれば成功として扱う。
-    ライブラリは足していない。
-  - 送り先は `auth.getWriteRelays()`（`getRelays()` の write リレー、取れなければ既定）。
+  - `auth.signEvent` で署名し、`publishEvent`（`src/lib/publish.ts`）が `["EVENT", ev]` を
+    送って `["OK", id, true]` を待つ。1 本でも受理されれば成功として扱う。ライブラリは足していない。
+  - 送り先は**ブラウザ内リレー 1 本**（`cacheRelay.interceptUrl`）。nostr-cache は
+    write-through で、受けたイベントを検証・保存して `OK` を返してから上流へ流すので、
+    上流リレーを列挙して送る必要が無い。キャッシュに載るぶん自分の画面にも即座に出る。
+  - ブラウザ内リレーが無いときだけ `auth.getWriteRelays()`（`getRelays()` の write リレー、
+    取れなければ既定）へ直接送る。読み込み側の `pickViewRelays` と同じフォールバック。
+  - 注意: write-through 経路の `OK` は「保存して上流へ渡した」までで、上流が受理したかは
+    言っていない（リレー側の転送は fire-and-forget）。
   - いまの利用者はリポスト（kind 6 / 16）だけ。**リアクション（kind 7）は未実装**で、
     足すならこの経路にイベントを 1 つ組み立てて渡すだけで済む。
 
