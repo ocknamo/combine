@@ -53,6 +53,14 @@ let builtFor: string | null = null;
 let pendingContext: { reply: string | null; quotes: string[] } | null = null;
 /** A caret asked for before there was an editor to put it in. */
 let focusWanted = false;
+/**
+ * What the element said when it reported a failed init, if it did.
+ *
+ * The report arrives as an event while the mount is still awaiting the element,
+ * and answering it tears the element down — which the mount then sees as a
+ * disconnect. So the reason is kept here and wins over the rejection it caused.
+ */
+let initFailure: string | null = null;
 
 let targetKind = $state<'reply' | 'quote'>('reply');
 let targetId = $state('');
@@ -62,6 +70,9 @@ async function mountComposer(): Promise<void> {
   if (composer || mounting || !hostEl) return;
   mounting = true;
   status = 'loading';
+  initFailure = null;
+  /** Whether this attempt was pulled out from under us and owes a replacement. */
+  let torndown = false;
   // The editor brings its own Dexie, which refuses to start next to the one
   // nostr-cache brought. Hide the page's registration until the editor is up.
   const restoreDexie = shieldDexieRegistry();
@@ -102,26 +113,35 @@ async function mountComposer(): Promise<void> {
     teardown();
     // A torn-down mount is not a failed editor — build the replacement instead
     // of putting an error where the editor should be. Once only: if it keeps
-    // being pulled out from under us, the error is the honest answer.
-    if (isDisconnected(err) && !remounted) {
+    // being pulled out from under us, the error is the honest answer. Not when
+    // the element reported why it could not start: the teardown was this view
+    // answering that report, and a replacement would fail the same way.
+    if (isDisconnected(err) && !remounted && !initFailure) {
       remounted = true;
-      mounting = false;
-      void mountComposer();
-      return;
+      torndown = true;
+    } else {
+      failure = initFailure ?? describeFailure(err);
+      status = 'failed';
     }
-    failure = describeFailure(err);
-    status = 'failed';
   } finally {
     restoreDexie();
     mounting = false;
   }
+  // After the attempt above has fully unwound, so the shield and `mounting` are
+  // this attempt's to hand back — starting it inside the `catch` would leave the
+  // `finally` clearing both out from under the replacement.
+  if (torndown) await mountComposer();
 }
 
 /** Try again after a failure — a dead tab until reload is no way to leave it. */
 function retry(): void {
+  // An attempt already in flight will report its own outcome; blanking the
+  // screen for it would only replace the error with nothing.
+  if (mounting) return;
   failure = null;
   status = 'idle';
   remounted = false;
+  initFailure = null;
   void mountComposer();
 }
 
@@ -211,8 +231,11 @@ $effect(() => {
   const onInitError = (event: Event) => {
     const detail = (event as CustomEvent<InitErrorDetail>).detail;
     console.error('[combine] eHagaki composer reported an init error:', detail);
+    // Before the teardown, which is what a mount still in flight will see.
+    initFailure =
+      [detail?.code, detail?.message].filter(Boolean).join(': ') || 'initialization_failed';
     teardown();
-    failure = [detail?.code, detail?.message].filter(Boolean).join(': ') || 'initialization_failed';
+    failure = initFailure;
     status = 'failed';
   };
 
