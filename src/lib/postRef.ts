@@ -66,6 +66,13 @@ export const POST_REPOST_ACTION = {
   icon: 'repeat',
 } as const;
 
+/** Signs and publishes a `+` reaction to this post (NIP-25; see `reaction.ts`). */
+export const POST_LIKE_ACTION = {
+  id: 'like',
+  label: 'リアクション',
+  icon: 'favorite',
+} as const;
+
 /** Hands this post's page URL to the OS share sheet (see `share.ts`). */
 export const POST_SHARE_ACTION = {
   id: 'share',
@@ -80,12 +87,13 @@ export const MATERIAL_ICONS = 'outlined';
  * The `actions` attribute value. One definition for every list in the app.
  *
  * 詳細 sits last as the one that leaves the timeline. One definition covers
- * every post in the list, so there is no "already reposted" state to show and
- * nothing to disable per post.
+ * every post in the list, so there is no "already reposted" or "already
+ * reacted" state to show and nothing to disable per post.
  */
 export const POST_ACTIONS_ATTR = JSON.stringify([
   POST_REPLY_ACTION,
   POST_REPOST_ACTION,
+  POST_LIKE_ACTION,
   POST_SHARE_ACTION,
   POST_DETAIL_ACTION,
 ]);
@@ -94,6 +102,7 @@ export const POST_ACTIONS_ATTR = JSON.stringify([
 export const POST_PAGE_ACTIONS_ATTR = JSON.stringify([
   POST_REPLY_ACTION,
   POST_REPOST_ACTION,
+  POST_LIKE_ACTION,
   POST_SHARE_ACTION,
 ]);
 
@@ -218,8 +227,8 @@ export function actionPath(detail: unknown): string | null {
   // The 詳細 button and a tap on a quoted card differ only in which event they
   // carry — the button the post's own, the quote the post it embeds — so both
   // land in the same resolution below and reach `#/post/…` the same way. The
-  // three buttons next to 詳細 act on the post rather than navigating, so they
-  // are not this function's business (see `postAction.ts`).
+  // buttons next to 詳細 act on the post rather than navigating, so they are not
+  // this function's business (see `postAction.ts`).
   const actionId = record['actionId'];
   if (actionId !== POST_DETAIL_ACTION.id && actionId !== NOTE_ACTION_ID) return null;
 
