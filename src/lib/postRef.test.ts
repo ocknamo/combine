@@ -8,6 +8,7 @@ import {
   normalizePostRef,
   POST_ACTIONS_ATTR,
   POST_DETAIL_ACTION,
+  POST_LIKE_ACTION,
   POST_PAGE_ACTIONS_ATTR,
   POST_REPLY_ACTION,
   POST_REPOST_ACTION,
@@ -120,13 +121,14 @@ describe.each([
 });
 
 describe('the action row', () => {
-  it('offers reply, repost and share on every card', () => {
+  it('offers reply, repost, reaction and share on every card', () => {
     const ids = (JSON.parse(POST_ACTIONS_ATTR) as Array<Record<string, unknown>>).map(
       (item) => item['id']
     );
     expect(ids).toEqual([
       POST_REPLY_ACTION.id,
       POST_REPOST_ACTION.id,
+      POST_LIKE_ACTION.id,
       POST_SHARE_ACTION.id,
       POST_DETAIL_ACTION.id,
     ]);
@@ -138,6 +140,7 @@ describe('the action row', () => {
     );
     expect(ids).not.toContain(POST_DETAIL_ACTION.id);
     expect(ids).toContain(POST_REPLY_ACTION.id);
+    expect(ids).toContain(POST_LIKE_ACTION.id);
   });
 });
 

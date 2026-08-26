@@ -5,12 +5,14 @@ import {
   actionPath,
   actionTarget,
   POST_ACTION_EVENT,
+  POST_LIKE_ACTION,
   POST_REPLY_ACTION,
   POST_REPOST_ACTION,
   POST_SHARE_ACTION,
   type PostTarget,
   postPath,
 } from './postRef';
+import { react } from './reaction';
 import { repost } from './repost';
 import { router } from './router.svelte';
 import { appUrl, shareLink } from './share';
@@ -32,9 +34,22 @@ async function share(target: PostTarget): Promise<void> {
 }
 
 /**
+ * The buttons that act on the post instead of navigating away from it, by the
+ * id they report themselves as. Keyed rather than branched so the ids appear
+ * once: a press whose id is not here is either handled by `actionPath` above or
+ * is not ours at all.
+ */
+const ACTS_ON_POST = new Map<string, (target: PostTarget) => void>([
+  [POST_REPLY_ACTION.id, reply],
+  [POST_REPOST_ACTION.id, (target) => void repost(target)],
+  [POST_LIKE_ACTION.id, (target) => void react(target)],
+  [POST_SHARE_ACTION.id, (target) => void share(target)],
+]);
+
+/**
  * Turn a tap on a card into what it asks for: the 詳細 button opens the post,
- * the author's avatar or display name opens the person, and the three buttons
- * beside 詳細 reply to it, repost it or share it.
+ * the author's avatar or display name opens the person, and the buttons beside
+ * 詳細 reply to it, repost it, react to it or share it.
  *
  * The element's action event bubbles and is composed, so one listener on a
  * wrapper covers every nostr-cache element inside it — which is why `HomeView`
@@ -45,7 +60,7 @@ export const handlePostAction: Action<HTMLElement> = (node) => {
   const onAction = (event: Event) => {
     const detail = (event as CustomEvent).detail;
 
-    // Answers for the ids that lead somewhere else, null for the three below.
+    // Answers for the ids that lead somewhere else, null for `ACTS_ON_POST`.
     const path = actionPath(detail);
     if (path) {
       router.go(path);
@@ -53,13 +68,8 @@ export const handlePostAction: Action<HTMLElement> = (node) => {
     }
 
     const actionId = (detail as { actionId?: unknown } | null)?.actionId;
-    if (
-      actionId !== POST_REPLY_ACTION.id &&
-      actionId !== POST_REPOST_ACTION.id &&
-      actionId !== POST_SHARE_ACTION.id
-    ) {
-      return;
-    }
+    const act = typeof actionId === 'string' ? ACTS_ON_POST.get(actionId) : undefined;
+    if (!act) return;
 
     const target = actionTarget(detail);
     if (!target) {
@@ -68,9 +78,7 @@ export const handlePostAction: Action<HTMLElement> = (node) => {
       return;
     }
 
-    if (actionId === POST_REPLY_ACTION.id) reply(target);
-    else if (actionId === POST_REPOST_ACTION.id) void repost(target);
-    else void share(target);
+    act(target);
   };
 
   node.addEventListener(POST_ACTION_EVENT, onAction);
