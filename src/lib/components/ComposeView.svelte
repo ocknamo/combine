@@ -267,10 +267,9 @@ function applyContext(event: SubmitEvent) {
 }
 
 // The 返信 button under a card leaves its target here on its way to this tab
-// (see `composeContext.svelte.ts`). Collected in an effect rather than on
-// mount, because this view is mounted for the app's lifetime: every press
-// after the first arrives while it is already on screen. Taking it clears the
-// store, which runs this again — the second pass finds nothing and stops.
+// (see `composeContext.svelte.ts`). An effect rather than onMount, because this
+// view stays mounted for the app's lifetime: every press after the first
+// arrives while it is already on screen.
 $effect(() => {
   if (!composeContext.pending) return;
   const requested = composeContext.take();
@@ -278,8 +277,8 @@ $effect(() => {
   setContext(requested);
   const reply = requested.reply ?? null;
   const quotes = requested.quotes ?? [];
-  // Mirror it into the manual form, so what the editor was handed is what the
-  // 返信・引用先 panel shows — and so クリア clears the same thing.
+  // So the 返信・引用先 panel shows what the editor was handed, and クリア clears
+  // the same thing.
   targetKind = reply ? 'reply' : 'quote';
   targetId = reply ?? quotes[0] ?? '';
   contextLabel = targetId ? describeContext(targetKind, targetId) : null;

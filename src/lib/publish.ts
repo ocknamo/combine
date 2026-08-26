@@ -1,20 +1,12 @@
 /**
  * Sending a signed event to relays — combine's first write path.
  *
- * Everything else the app publishes goes through an embed (eHagaki posts, and
- * publishes them itself). A repost has no embed to delegate to, and NIP-01's
- * write side is small enough to do here: open a socket, send `["EVENT", ev]`,
- * wait for `["OK", <id>, …]`. No library is pulled in for it — neither
- * nostr-tools nor rx-nostr is a direct dependency, and this is the whole
- * protocol.
- *
- * Relays are tried in parallel and one acceptance is a success: relays
- * disagree about who may write to them, and a post that reached three of five
- * is a post that happened.
+ * No library for it: NIP-01's write side is one socket, one `["EVENT", ev]` and
+ * one `["OK", …]`, and neither nostr-tools nor rx-nostr is a direct dependency.
  *
  * nostr-cache replaces `globalThis.WebSocket` to intercept the one URL its
- * in-page relay answers on, so a connection to an upstream `wss://` passes
- * straight through to the real socket.
+ * in-page relay answers on, so this reaches either that relay or an upstream
+ * `wss://` without knowing the difference.
  */
 
 /** The minimum of the WebSocket API this needs, so a test can stand one in. */
@@ -40,14 +32,13 @@ export interface PublishResult {
   rejected: { relay: string; reason: string }[];
 }
 
-export const PUBLISH_TIMEOUT_MS = 8000;
+const PUBLISH_TIMEOUT_MS = 8000;
 
 /**
- * Read a relay's answer to our EVENT out of one incoming frame.
+ * A relay's answer to our EVENT, out of one incoming frame, or `null`.
  *
- * Only the `OK` for the id we sent counts. A relay is free to send anything
- * else down the same socket — an `EOSE` for a subscription, a `NOTICE` — and
- * none of it says whether our event landed.
+ * Only the `OK` for the id we sent counts: a relay is free to send an `EOSE`, a
+ * `NOTICE` or someone else's `OK` down the same socket.
  */
 export function readOk(data: unknown, eventId: string): { ok: boolean; reason: string } | null {
   if (typeof data !== 'string') return null;
@@ -85,12 +76,11 @@ function publishTo(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      // The socket has done its one job either way; leaving it open would hold
-      // a connection per repost for as long as the tab lives.
+      // Otherwise a repost leaves a connection open for the life of the tab.
       try {
         socket.close();
       } catch {
-        // Already closing or closed — nothing left to do.
+        // Already closing or closed.
       }
       resolve(result);
     };
@@ -108,8 +98,7 @@ function publishTo(
       if (answer) finish(answer);
     });
     socket.addEventListener('error', () => finish({ ok: false, reason: '接続できませんでした' }));
-    // A close before the OK is a refusal without a message — some relays drop
-    // the connection instead of answering.
+    // Some relays drop the connection instead of answering.
     socket.addEventListener('close', () => finish({ ok: false, reason: '接続が閉じられました' }));
   });
 }
@@ -117,8 +106,9 @@ function publishTo(
 /**
  * Publish a signed event to every relay, and report which took it.
  *
- * Never rejects: a relay that is down is an outcome, not an exception, and the
- * caller decides what to say from {@link PublishResult.accepted} being empty.
+ * Never rejects: a relay that is down is an outcome, not an exception. One
+ * acceptance is enough to call it published — relays disagree about who may
+ * write to them, and reaching three of five is still reaching the network.
  */
 export async function publishEvent(
   event: { id: string },

@@ -77,16 +77,11 @@ export const POST_SHARE_ACTION = {
 export const MATERIAL_ICONS = 'outlined';
 
 /**
- * The `actions` attribute value for a list. One definition for every list in
- * the app.
+ * The `actions` attribute value. One definition for every list in the app.
  *
- * 詳細 sits last because it is the one that leaves the timeline; the three
- * before it act on the post where it is. nostr-cache fits at most eight in a
- * row and drops the rest, which the test guards.
- *
- * Every button is rendered for every post — the widget takes one definition for
- * the whole list — so there is no "already reposted" state to show and nothing
- * to disable per post.
+ * 詳細 sits last as the one that leaves the timeline. One definition covers
+ * every post in the list, so there is no "already reposted" state to show and
+ * nothing to disable per post.
  */
 export const POST_ACTIONS_ATTR = JSON.stringify([
   POST_REPLY_ACTION,
@@ -95,10 +90,7 @@ export const POST_ACTIONS_ATTR = JSON.stringify([
   POST_DETAIL_ACTION,
 ]);
 
-/**
- * The same row for the detail page, without 詳細 — it would only lead back to
- * the page it was pressed on.
- */
+/** The same row without 詳細, which would lead back to the page it is on. */
 export const POST_PAGE_ACTIONS_ATTR = JSON.stringify([
   POST_REPLY_ACTION,
   POST_REPOST_ACTION,
@@ -141,10 +133,9 @@ export const POST_ACTION_EVENT = 'nostr-timeline:action';
 const REFERRING_KINDS = new Set([6, 7, 9735]);
 
 /**
- * The value of the last tag of `name`, or `null`.
- *
- * The last one is the reacted-to event (`e`) and its author (`p`) under both
- * NIP-10's positional scheme and the marked one.
+ * The value of the last tag of `name`, or `null`. The last one is the
+ * reacted-to event (`e`) and its author (`p`) under both NIP-10's positional
+ * scheme and the marked one.
  */
 function lastTagValue(tags: unknown, name: string): string | null {
   if (!Array.isArray(tags)) return null;
@@ -167,17 +158,14 @@ export interface PostTarget {
 
 /**
  * Which post a `nostr-timeline:action` detail is about, or `null` to ignore it.
- *
  * Reads defensively: the detail crosses a shadow boundary from a script this
  * app does not build.
  *
  * A repost, a reaction or a zap receipt is not the post the user meant —
- * notifications is full of them, and replying to one would answer a `+`. Those
- * resolve to what they refer to, which the tags carry as far as they go: the
- * event id and its author, but not its kind, so kind 1 is assumed (the only
- * kind the app's own lists ask for). One that names no event falls through to
- * itself: it is still an event, and a button that does nothing is worse than a
- * button that acts on the card it sits under.
+ * notifications is full of them, and replying to one would answer a `+`. The
+ * tags name what they refer to, but not its kind, so kind 1 is assumed (the
+ * only kind the app's own lists ask for). One that names no event falls through
+ * to itself, which still beats a button that does nothing.
  */
 export function actionTarget(detail: unknown): PostTarget | null {
   if (typeof detail !== 'object' || detail === null) return null;

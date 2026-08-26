@@ -195,8 +195,6 @@ describe('actionTarget', () => {
   });
 
   it('falls back to the card itself when a repost names no event', () => {
-    // Same fallback `actionPath` has always had: acting on the card in hand
-    // beats a button that does nothing.
     expect(actionTarget(action({ id: HEX, pubkey: OTHER_HEX, kind: 6, tags: [] }))).toEqual({
       id: HEX,
       pubkey: OTHER_HEX,

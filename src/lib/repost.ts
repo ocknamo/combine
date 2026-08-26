@@ -1,14 +1,11 @@
 /**
- * Reposting a post (NIP-18): build the event, have Nosskey sign it, send it
- * through the page's cache relay (see {@link publishTargets}).
+ * Reposting a post (NIP-18).
  *
- * This is combine's own write path. Posting is delegated to the eHagaki embed,
- * which publishes for itself, so nothing here existed until now (see
- * `TODO.md`).
+ * The one thing combine publishes itself: ordinary posts are the eHagaki
+ * embed's, which signs through the shim and sends them on its own.
  *
- * The signing iframe shows its own consent dialog for every signature, so a
- * press goes straight to it — a confirmation of combine's own in front of that
- * would be the same question asked twice.
+ * A press goes straight to the signer — nosskey.app gates every signature
+ * behind its own consent dialog, so asking first would ask twice.
  */
 import { auth } from './auth.svelte';
 import { cacheRelay } from './cacheRelay.svelte';
@@ -17,7 +14,7 @@ import { publishEvent } from './publish';
 import { toast } from './toast.svelte';
 
 /** A Nostr event before it has been signed, as the signer takes it. */
-export interface UnsignedEvent {
+interface UnsignedEvent {
   kind: number;
   content: string;
   tags: string[][];
@@ -26,24 +23,18 @@ export interface UnsignedEvent {
 }
 
 /**
- * The repost event for a post.
+ * The repost event for a post: kind 6 for a note, the generic kind 16 with a
+ * `k` tag for anything else (NIP-18).
  *
- * NIP-18 gives kind 1 its own kind (6) and everything else the generic repost
- * (16), which names what it wrapped in a `k` tag. `content` is left empty
- * rather than carrying the reposted event: NIP-18 allows the stringified event
- * there, but what arrives from the widget is a card's worth of data that may
- * not still be a verifiable event, and a reader that cannot check a signature
- * has to fetch the original anyway.
+ * `content` stays empty although NIP-18 allows the reposted event there: what
+ * the widget hands over is a card's worth of data that may no longer verify,
+ * and a reader that cannot check the signature has to fetch the original anyway.
+ * For the same reason an addressable event is reposted by the id on screen
+ * rather than its `a` coordinate — the card carries no `d` identifier.
  *
- * An addressable event (a long-form post, say) is reposted by the id of the
- * version on screen rather than by its `a` coordinate: the card does not carry
- * its `d` identifier, and only the detail page can show one at all — the app's
- * own lists ask for kind 1.
- *
- * No relay hint on the `e` tag: NIP-18 wants the relay the original can be
- * found on, and combine does not know it — the widget reads through the in-page
- * cache and never reports which upstream an event came from. Naming one of the
- * user's own relays instead would be a hint pointing at the wrong place.
+ * No relay hint on the `e` tag: reads go through the in-page cache, which never
+ * says which upstream an event came from, so any relay named here would be a
+ * guess.
  */
 export function buildRepost(
   target: PostTarget,
@@ -63,19 +54,15 @@ export function buildRepost(
 }
 
 /**
- * Where to send the repost: the in-page cache relay when one is running, the
- * user's write relays when there is none.
+ * Where to send the repost.
  *
- * The cache relay is write-through — an EVENT it takes is validated, stored in
- * IndexedDB, answered with `OK`, and then forwarded to the upstream relays it
- * was started with. So one socket to it does everything sending to each relay
- * would, and it does something they cannot: the repost is in the cache every
- * view reads through, so it is on screen without waiting for a relay to send it
- * back.
+ * The cache relay is write-through: it validates the event, stores it, answers
+ * `OK` and forwards it to its upstreams itself. So one socket to it does what
+ * sending to every relay would, and puts the repost in the cache the views read
+ * through — on screen without waiting for a relay to send it back.
  *
- * The direct path is the same fallback the views have (see
- * `pickViewRelays`): with no cache relay there is nothing to read through, and
- * nothing to publish through either.
+ * Falling back to the write relays is the same fallback the views make when
+ * there is no cache relay to read through (see `pickViewRelays`).
  */
 async function publishTargets(): Promise<string[]> {
   const intercept = cacheRelay.interceptUrl;
@@ -87,13 +74,10 @@ async function publishTargets(): Promise<string[]> {
  *
  * Toasts rather than a screen of its own: the press happened on a card in a
  * list the user is still reading, and nothing else about that list changes.
- * A dialog the user dismissed is not a failure to report — Nosskey rejects the
- * signature and the post simply does not happen.
  *
- * Through the cache relay, the `OK` says the repost was stored and handed on,
- * not that an upstream relay took it: the forward is fire-and-forget on the
- * relay's side. That is the write-through bargain — the same one the read path
- * makes — and a "sent" the user can see beats one they wait for.
+ * Through the cache relay the `OK` means stored and handed on, not accepted
+ * upstream — the relay forwards fire-and-forget. That is the write-through
+ * bargain the read path already makes.
  */
 export async function repost(target: PostTarget): Promise<void> {
   const pubkey = auth.pubkey;
@@ -103,13 +87,11 @@ export async function repost(target: PostTarget): Promise<void> {
   }
 
   try {
-    // The relays are settled before signing so the consent dialog is the last
-    // thing between the press and the publish, not something waiting on a
-    // network round trip after it.
+    // Before signing, so the consent dialog is the last thing between the press
+    // and the publish rather than a network round trip after it.
     const relays = await publishTargets();
     const signed = await auth.signEvent(buildRepost(target, pubkey));
-    // The signer types `id` as optional (it takes unsigned events too), and an
-    // event with no id is one no relay can answer `OK` for.
+    // Optional in the signer's type because it takes unsigned events too.
     if (!signed.id) throw new Error('signed event has no id');
     const result = await publishEvent({ ...signed, id: signed.id }, relays);
     if (result.accepted.length === 0) {
@@ -119,8 +101,8 @@ export async function repost(target: PostTarget): Promise<void> {
     }
     toast.show('リポストしました');
   } catch (err) {
-    // Includes the user declining at nosskey.app, which is not worth a toast of
-    // its own: they know what they just pressed.
+    // Includes the user declining at nosskey.app — not worth a toast of its
+    // own, they know what they just pressed.
     console.error('[combine] repost failed:', err);
     toast.show('リポストに失敗しました', 'error');
   }

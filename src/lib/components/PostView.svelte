@@ -76,12 +76,11 @@ const relays = $derived(relaysAttr(cacheRelay.upstreamRelays));
   {:else if !ready || !cacheRelay.resolved}
     <p class="empty">読み込み中…</p>
   {:else}
-    <!-- The timelines' row minus 詳細, which would only lead back to the page it
-         was pressed on. Only the post itself carries it: the widget's reply
-         tree takes no `actions`, so the replies under it have none.
-         `author-action` and `note-action` add no row at all, and everything
-         they point at (the author, every author in the reply tree, and the
-         posts this one quotes) is somewhere else to go. -->
+    <!-- The timelines' row minus 詳細. Only the post itself carries it: the
+         widget's reply tree takes no `actions`. `author-action` and
+         `note-action` add no row at all, and everything they point at (the
+         author, every author in the reply tree, and the posts this one quotes)
+         is somewhere else to go. -->
     <nostr-post
       use:handlePostAction
       event-id={ref}

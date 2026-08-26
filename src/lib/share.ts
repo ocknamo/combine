@@ -1,16 +1,11 @@
 /**
  * Handing a link to the OS share sheet, or to the clipboard where there is
- * none.
- *
- * One implementation for the two places that share something: a person's page
- * (`ProfileView`) and a post (the 共有 button under every card).
+ * none. Shared by a person's page and the 共有 button under every post.
  */
 import { toast } from './toast.svelte';
 
 /**
- * Share `url`, falling back to the clipboard.
- *
- * A share the user dismissed is not a failure and must not fall back — copying
+ * A share the user dismissed must not fall back to the clipboard — copying
  * something they just declined to send is the one outcome they did not ask for.
  */
 export async function shareLink(url: string): Promise<void> {

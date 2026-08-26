@@ -30,10 +30,9 @@ export function readRelaysFrom(map: RelayMap | null | undefined): string[] {
  * Pick the relays to publish to out of a NIP-07 relay map, the mirror of
  * {@link readRelaysFrom}.
  *
- * Falls back to {@link DEFAULT_RELAYS} the same way: a post the user cannot
- * send anywhere is worse than one sent to relays they did not choose, and a map
- * that lists no writable relay is far more likely to be a relay list combine
- * failed to read than a deliberate "publish nowhere".
+ * Falls back to {@link DEFAULT_RELAYS} for the same reason: a map with no
+ * writable relay is far more likely to be a relay list combine failed to read
+ * than a deliberate "publish nowhere".
  */
 export function writeRelaysFrom(map: RelayMap | null | undefined): string[] {
   if (!map) return DEFAULT_RELAYS;

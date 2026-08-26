@@ -5,10 +5,7 @@ const EVENT = { id: 'a'.repeat(64) };
 
 type Listener = (ev: { data?: unknown }) => void;
 
-/**
- * A stand-in for the browser's WebSocket. There is no DOM in this test
- * environment, and a real socket would need a relay to talk to.
- */
+/** A stand-in for the browser's WebSocket: there is no DOM in this suite. */
 class FakeSocket implements PublishSocket {
   sent: string[] = [];
   closed = 0;
@@ -77,8 +74,6 @@ describe('publishEvent', () => {
       rejected: [{ relay: 'wss://b.example', reason: 'blocked: no' }],
     });
     expect(sockets.get('wss://a.example')?.sent).toEqual([JSON.stringify(['EVENT', EVENT])]);
-    // Every socket is closed once it has answered; a repost must not leave one
-    // open for the life of the tab.
     expect(sockets.get('wss://a.example')?.closed).toBe(1);
     expect(sockets.get('wss://b.example')?.closed).toBe(1);
   });

@@ -143,15 +143,13 @@ function tlv(type: number, value: Uint8Array): number[] {
 }
 
 /**
- * Encode a hex event id as nevent, carrying the hints a reader can use.
+ * Encode a hex event id as nevent, or as a `note` when there is no hint to
+ * carry. `null` for an invalid id.
  *
  * The author is what makes this worth more than a bare `note`: a client
- * building a reply needs the `p` tag, and with the author in the reference it
- * does not have to fetch the event to learn it. Relay hints are capped at one —
- * every extra hint is bytes in a string a user may end up looking at, and the
- * first relay that has the event is enough to find it.
- *
- * Returns a `note` when there is nothing to add, and `null` for an invalid id.
+ * building a reply needs it for the `p` tag and would otherwise fetch the event
+ * to learn it. Only the first relay hint is kept — one that has the event is
+ * enough to find it, and the rest are bytes in a string a user may look at.
  */
 export function toNevent(
   hexEventId: string,
@@ -164,7 +162,7 @@ export function toNevent(
   const relay = hints.relays?.find((url) => url.trim() !== '')?.trim();
   if (!(author && HEX64.test(author)) && !relay) return toNote(id);
 
-  // TLV: 0 = the event id, 1 = a relay hint (ASCII), 2 = the author.
+  // TLV: 0 = event id, 1 = relay hint (ASCII), 2 = author.
   const bytes = [...tlv(0, hexToBytes(id))];
   if (relay) bytes.push(...tlv(1, new TextEncoder().encode(relay)));
   if (author && HEX64.test(author)) bytes.push(...tlv(2, hexToBytes(author)));

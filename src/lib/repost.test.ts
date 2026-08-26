@@ -65,8 +65,7 @@ describe('repost', () => {
     expect(publishEvent).toHaveBeenCalledWith(expect.objectContaining({ id: 'e'.repeat(64) }), [
       'ws://cache.invalid',
     ]);
-    // The cache relay forwards upstream itself, so the write relays are not
-    // asked for and nothing is sent to them twice.
+    // It forwards upstream itself; sending there too would send twice.
     expect(auth.getWriteRelays).not.toHaveBeenCalled();
     expect(show).toHaveBeenCalledWith('リポストしました');
   });

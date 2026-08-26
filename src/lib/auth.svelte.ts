@@ -140,13 +140,10 @@ class AuthStore {
   }
 
   /**
-   * Relays to publish to: the signed-in user's write relays.
-   *
-   * Read on demand rather than kept in state like {@link relays} — nothing
-   * renders from it, and a repost is rare enough that asking the iframe at the
-   * time is cheaper than another thing to keep fresh. Best-effort in the same
-   * way as {@link refreshRelays}: a failure falls back to the defaults so the
-   * publish still has somewhere to go.
+   * Relays to publish to, read on demand rather than kept in state like
+   * {@link relays}: nothing renders from it, and the one caller is a fallback
+   * (see `repost.ts`). Best-effort — a failure falls back to the defaults so
+   * the publish still has somewhere to go.
    */
   async getWriteRelays(): Promise<string[]> {
     try {
