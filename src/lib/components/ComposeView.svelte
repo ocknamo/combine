@@ -10,9 +10,11 @@
  * itself stays mounted for the app's lifetime (see `App.svelte`).
  */
 import { auth } from '../auth.svelte';
+import { composeContext } from '../composeContext.svelte';
 import { setComposeFocusHandler } from '../composeFocus';
 import {
   applyComposerTheme,
+  type ComposerContext,
   clearEhagakiStorage,
   composerHeight,
   createComposer,
@@ -50,7 +52,7 @@ let remounted = false;
 /** The account the live element was built for. */
 let builtFor: string | null = null;
 /** Set while the element is still coming up, and applied once it is ready. */
-let pendingContext: { reply: string | null; quotes: string[] } | null = null;
+let pendingContext: ComposerContext | null = null;
 /** A caret asked for before there was an editor to put it in. */
 let focusWanted = false;
 
@@ -250,6 +252,10 @@ $effect(() => {
   };
 });
 
+function describeContext(kind: 'reply' | 'quote', id: string): string {
+  return `${kind === 'reply' ? '返信先' : '引用'}: ${id.slice(0, 16)}…`;
+}
+
 function applyContext(event: SubmitEvent) {
   event.preventDefault();
   const id = targetId.trim();
@@ -257,8 +263,26 @@ function applyContext(event: SubmitEvent) {
   const context =
     targetKind === 'reply' ? { reply: id, quotes: [] } : { reply: null, quotes: [id] };
   setContext(context);
-  contextLabel = `${targetKind === 'reply' ? '返信先' : '引用'}: ${id.slice(0, 16)}…`;
+  contextLabel = describeContext(targetKind, id);
 }
+
+// The 返信 button under a card leaves its target here on its way to this tab
+// (see `composeContext.svelte.ts`). An effect rather than onMount, because this
+// view stays mounted for the app's lifetime: every press after the first
+// arrives while it is already on screen.
+$effect(() => {
+  if (!composeContext.pending) return;
+  const requested = composeContext.take();
+  if (!requested) return;
+  setContext(requested);
+  const reply = requested.reply ?? null;
+  const quotes = requested.quotes ?? [];
+  // So the 返信・引用先 panel shows what the editor was handed, and クリア clears
+  // the same thing.
+  targetKind = reply ? 'reply' : 'quote';
+  targetId = reply ?? quotes[0] ?? '';
+  contextLabel = targetId ? describeContext(targetKind, targetId) : null;
+});
 
 function clearContext() {
   targetId = '';
@@ -267,7 +291,7 @@ function clearContext() {
 }
 
 /** Hand the context over, or hold it until the element is ready to take it. */
-function setContext(context: { reply: string | null; quotes: string[] }): void {
+function setContext(context: ComposerContext): void {
   if (status !== 'ready' || !composer) {
     pendingContext = context;
     return;

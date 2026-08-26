@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RELAYS, pickViewRelays, readRelaysFrom } from './relays';
+import { DEFAULT_RELAYS, pickViewRelays, readRelaysFrom, writeRelaysFrom } from './relays';
 
 describe('readRelaysFrom', () => {
   it('falls back to defaults for a missing map', () => {
@@ -26,6 +26,25 @@ describe('readRelaysFrom', () => {
   it('falls back to defaults when no relay is readable', () => {
     expect(readRelaysFrom({})).toBe(DEFAULT_RELAYS);
     expect(readRelaysFrom({ 'wss://write.example': { read: false, write: true } })).toBe(
+      DEFAULT_RELAYS
+    );
+  });
+});
+
+describe('writeRelaysFrom', () => {
+  it('keeps only writable relays', () => {
+    const relays = writeRelaysFrom({
+      'wss://read.example': { read: true, write: false },
+      'wss://write.example': { read: false, write: true },
+    });
+    expect(relays).toEqual(['wss://write.example']);
+  });
+
+  it('falls back to defaults rather than publishing nowhere', () => {
+    expect(writeRelaysFrom(null)).toBe(DEFAULT_RELAYS);
+    expect(writeRelaysFrom(undefined)).toBe(DEFAULT_RELAYS);
+    expect(writeRelaysFrom({})).toBe(DEFAULT_RELAYS);
+    expect(writeRelaysFrom({ 'wss://read.example': { read: true, write: false } })).toBe(
       DEFAULT_RELAYS
     );
   });

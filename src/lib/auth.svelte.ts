@@ -4,7 +4,7 @@ import {
   type NostrEvent,
   type RelayMap,
 } from 'nosskey-iframe';
-import { DEFAULT_RELAYS, readRelaysFrom } from './relays';
+import { DEFAULT_RELAYS, readRelaysFrom, writeRelaysFrom } from './relays';
 
 const NOSSKEY_IFRAME_URL = 'https://nosskey.app/#/iframe';
 const STORAGE_KEY = 'combine:pubkey';
@@ -136,6 +136,22 @@ class AuthStore {
       this.relays = readRelaysFrom(await client.getRelays());
     } catch {
       // Relay discovery is best-effort; keep whatever relays we already have.
+    }
+  }
+
+  /**
+   * Relays to publish to, read on demand rather than kept in state like
+   * {@link relays}: nothing renders from it, and the one caller is a fallback
+   * (see `repost.ts`). Best-effort — a failure falls back to the defaults so
+   * the publish still has somewhere to go.
+   */
+  async getWriteRelays(): Promise<string[]> {
+    try {
+      const client = this.#getClient();
+      await client.ready();
+      return writeRelaysFrom(await client.getRelays());
+    } catch {
+      return DEFAULT_RELAYS;
     }
   }
 

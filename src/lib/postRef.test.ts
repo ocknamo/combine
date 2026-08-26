@@ -3,10 +3,15 @@ import { toHexPubkey, toNpub } from './nip19';
 import {
   AUTHOR_ACTION_ID,
   actionPath,
+  actionTarget,
   NOTE_ACTION_ID,
   normalizePostRef,
   POST_ACTIONS_ATTR,
   POST_DETAIL_ACTION,
+  POST_PAGE_ACTIONS_ATTR,
+  POST_REPLY_ACTION,
+  POST_REPOST_ACTION,
+  POST_SHARE_ACTION,
   postPath,
   userPath,
 } from './postRef';
@@ -93,11 +98,14 @@ describe('NOTE_ACTION_ID', () => {
   });
 });
 
-describe('POST_ACTIONS_ATTR', () => {
+describe.each([
+  ['POST_ACTIONS_ATTR', POST_ACTIONS_ATTR],
+  ['POST_PAGE_ACTIONS_ATTR', POST_PAGE_ACTIONS_ATTR],
+])('%s', (_name, attr) => {
   // The element silently drops items that break any of these, so a typo here
   // would show up as a missing button rather than an error.
   it('survives nostr-cache normalisation', () => {
-    const items = JSON.parse(POST_ACTIONS_ATTR) as Array<Record<string, unknown>>;
+    const items = JSON.parse(attr) as Array<Record<string, unknown>>;
     expect(Array.isArray(items)).toBe(true);
     expect(items.length).toBeGreaterThan(0);
     expect(items.length).toBeLessThanOrEqual(8);
@@ -108,6 +116,91 @@ describe('POST_ACTIONS_ATTR', () => {
       expect(item['label']).not.toBe('');
     }
     expect(new Set(items.map((item) => item['id'])).size).toBe(items.length);
+  });
+});
+
+describe('the action row', () => {
+  it('offers reply, repost and share on every card', () => {
+    const ids = (JSON.parse(POST_ACTIONS_ATTR) as Array<Record<string, unknown>>).map(
+      (item) => item['id']
+    );
+    expect(ids).toEqual([
+      POST_REPLY_ACTION.id,
+      POST_REPOST_ACTION.id,
+      POST_SHARE_ACTION.id,
+      POST_DETAIL_ACTION.id,
+    ]);
+  });
+
+  it('drops 詳細 on the page the button would lead back to', () => {
+    const ids = (JSON.parse(POST_PAGE_ACTIONS_ATTR) as Array<Record<string, unknown>>).map(
+      (item) => item['id']
+    );
+    expect(ids).not.toContain(POST_DETAIL_ACTION.id);
+    expect(ids).toContain(POST_REPLY_ACTION.id);
+  });
+});
+
+describe('actionTarget', () => {
+  it('is the post the button sits under', () => {
+    expect(actionTarget(action({ id: HEX, pubkey: OTHER_HEX, kind: 1 }))).toEqual({
+      id: HEX,
+      pubkey: OTHER_HEX,
+      kind: 1,
+    });
+  });
+
+  it('follows a repost, a reaction or a zap to what it refers to', () => {
+    const wrapper = {
+      id: 'f'.repeat(64),
+      pubkey: 'e'.repeat(64),
+      kind: 6,
+      tags: [
+        ['e', HEX],
+        ['p', OTHER_HEX],
+      ],
+    };
+    expect(actionTarget(action(wrapper))).toEqual({ id: HEX, pubkey: OTHER_HEX, kind: 1 });
+    expect(actionTarget(action({ ...wrapper, kind: 7 }))?.id).toBe(HEX);
+    expect(actionTarget(action({ ...wrapper, kind: 9735 }))?.id).toBe(HEX);
+  });
+
+  it('takes the last e and p tags, as the marked and positional schemes agree', () => {
+    const event = {
+      id: 'f'.repeat(64),
+      kind: 7,
+      tags: [
+        ['e', 'd'.repeat(64)],
+        ['p', 'c'.repeat(64)],
+        ['e', HEX],
+        ['p', OTHER_HEX],
+      ],
+    };
+    expect(actionTarget(action(event))).toEqual({ id: HEX, pubkey: OTHER_HEX, kind: 1 });
+  });
+
+  it('reports no author rather than guessing one', () => {
+    expect(actionTarget(action({ id: HEX, kind: 1 }))?.pubkey).toBeNull();
+    expect(
+      actionTarget(action({ id: 'f'.repeat(64), kind: 6, tags: [['e', HEX]] }))?.pubkey
+    ).toBeNull();
+  });
+
+  it('ignores a detail with no post in it', () => {
+    expect(actionTarget(null)).toBeNull();
+    expect(actionTarget('detail')).toBeNull();
+    expect(actionTarget({ actionId: 'reply' })).toBeNull();
+    expect(actionTarget(action({ kind: 1 }))).toBeNull();
+    expect(actionTarget(action({ id: '', kind: 1 }))).toBeNull();
+  });
+
+  it('falls back to the card itself when a repost names no event', () => {
+    expect(actionTarget(action({ id: HEX, pubkey: OTHER_HEX, kind: 6, tags: [] }))).toEqual({
+      id: HEX,
+      pubkey: OTHER_HEX,
+      kind: 6,
+    });
+    expect(actionTarget(action({ id: HEX, kind: 6, tags: 'nope' }))?.id).toBe(HEX);
   });
 });
 

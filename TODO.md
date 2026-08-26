@@ -63,10 +63,11 @@ nostr-cache（`nostr-timeline` / `nostr-follow-timeline`）へ移行済みで、
 個別投稿も `nostr-post` へ移行済みで、`nostr-list` / `nostr-note` は未使用。
 この節の対象は残った `nostr-profile` のみ。
 
-※ アクションボタンの土台は解決済み。nostr-cache の `actions` 属性で各投稿の下にボタンを描画し、
-`nostr-timeline:action` でクリックを受け取る形が全タイムラインに入った（`src/lib/postRef.ts` /
-`src/lib/postAction.ts`）。いま置いてあるのは詳細画面へ飛ぶ「詳細」ボタンだけだが、
-下記「ハイブリッド案」の 1〜2 を自前で組む必要はもう無い。残るのは 3 の publish 処理だけ。
+※ アクションボタンは**対応済み**。nostr-cache の `actions` 属性で各投稿の下にボタンを描画し、
+`nostr-timeline:action` でクリックを受け取る形が全タイムラインと個別投稿画面に入っている
+（`src/lib/postRef.ts` / `src/lib/postAction.ts`）。いま出ているのは 返信・リポスト・共有・詳細 の 4 つで、
+publish 処理（下記「publish 経路」）もリポストで入った。下記「ハイブリッド案」は 1〜3 とも不要になった。
+残っているのはリアクション（kind 7）と、ボタン定義が一覧で 1 つなので「リポスト済み」を出せない件。
 
 ※ **キャッシュの話は解決済み**（この節の対象外）。通知・プロフィール・検索も
 nostr-cache のブラウザ内リレーを経由するようになった（`src/lib/cacheRelay.svelte.ts`）。
@@ -77,12 +78,14 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
     `slot` / `::part` / `::slotted` を公開していない。
     → 外から中身の DOM 注入・構造変更・CSS 上書きはほぼ不可。
     調整できるのは属性（`theme` / `display` / `href` / `noLink` / `height` / `relays` / `filters` / `limit`）のみ。
-  - **表示専用**で、返信・リポスト・リアクション・Zap のボタンも publish 機能も無い。
+  - **表示専用**で、返信・リポスト・リアクション・Zap のボタンも publish 機能も無い
+    （combine のアクションボタンは nostr-cache 側の要素にしか出せない。この節は `nostr-profile` の話）。
   - 実現の現実解（ハイブリッド案）:
     1. 自前でイベント一覧を取得（`NostrClient.fetchByFilters` 等。既存の relay/auth/follows 基盤を活用）
     2. 各イベントを `<nostr-note id=…>` で表示し、その **下に自前のアクションボタンを通常 DOM で配置**
     3. リアクション(kind7)/リポスト(kind6)/返信(kind1) を組み立て、署名（Nosskey）→ リレーへ publish
-  - 不足しているのは「リレーへ publish する処理」。`rx-nostr`（同梱）か `nostr-tools` のどちらで行うか要決定。
+  - ~~不足しているのは「リレーへ publish する処理」~~ → **対応済み**。ライブラリは足さず、
+    生 WebSocket で `["EVENT", ev]` を送って `["OK", …]` を待つ実装にした（`src/lib/publish.ts`）。
 
 ## OGP（リンクカード）
 
@@ -122,7 +125,9 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
     しており（combine は `window.nostr` 経由で pubkey と `signEvent` を出すだけ、publish と
     publish 先リレーは eHagaki 側）、Web Component にもリレーを渡す口が無い（eHagaki は
     kind 10002 を自前で取りに行く。`getRelays` も呼ばない）。
-    そのため `getRelays()` の write リレーは現状どこにも使われていない。
+    `getRelays()` の write リレーは**リポストのフォールバック経路で使い始めた**
+    （`src/lib/repost.ts`。通常はブラウザ内リレーの write-through に任せる）が、
+    eHagaki に委譲している通常の投稿には届かないまま。
     ユーザーの write リレーで publish させるには **上流への要望**か、`configureHostOwned`
     （`EHAGAKI_WEB_COMPONENT.md`。publish もアップロードも自前になるので採っていない）が要る。
   - 補足: NIP-65（kind 10002）の自分のリレーリストをリレーから取得する案も併用検討可。
@@ -191,12 +196,18 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
 
 ### publish 経路が要る（ここが本丸）
 
-- [ ] **署名済みイベントをリレーへ publish する処理**
-  - **署名は `auth.signEvent` で既にできる**。足りないのはリレーへ送る部分だけで、
-    `["EVENT", ev]` を投げて `["OK", id, true]` を待つ生 WebSocket でも書ける。
-    ライブラリ選定（rx-nostr / nostr-tools）を待つ必要は無い。
-  - 送り先は `getRelays()` の **write リレー**。publish を eHagaki に委譲している限り使い道が
-    無かったが、自前 publish ならここで初めて使える（eHagaki 側の拡張提案を待たずに済む）。
+- [x] **署名済みイベントをリレーへ publish する処理**（対応済み）
+  - `auth.signEvent` で署名し、`publishEvent`（`src/lib/publish.ts`）が `["EVENT", ev]` を
+    送って `["OK", id, true]` を待つ。1 本でも受理されれば成功として扱う。ライブラリは足していない。
+  - 送り先は**ブラウザ内リレー 1 本**（`cacheRelay.interceptUrl`）。nostr-cache は
+    write-through で、受けたイベントを検証・保存して `OK` を返してから上流へ流すので、
+    上流リレーを列挙して送る必要が無い。キャッシュに載るぶん自分の画面にも即座に出る。
+  - ブラウザ内リレーが無いときだけ `auth.getWriteRelays()`（`getRelays()` の write リレー、
+    取れなければ既定）へ直接送る。読み込み側の `pickViewRelays` と同じフォールバック。
+  - 注意: write-through 経路の `OK` は「保存して上流へ渡した」までで、上流が受理したかは
+    言っていない（リレー側の転送は fire-and-forget）。
+  - いまの利用者はリポスト（kind 6 / 16）だけ。**リアクション（kind 7）は未実装**で、
+    足すならこの経路にイベントを 1 つ組み立てて渡すだけで済む。
 
 - [ ] **フォロー / フォロー解除**
   - 上記の publish ＋ kind 3。難所は UI ではなく **kind 3 が全置換**であること。
@@ -204,10 +215,12 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
     `created_at` が最大のものをベースにする・1 件も取れなければ publish しない、という
     ガードが要る。
 
-- [ ] **相手の投稿へのリアクション / リポスト / 返信**
-  - この画面固有ではないが、開いた先で相手の投稿に対して何もできない。ボタンの土台
-    （`actions` / `nostr-timeline:action`）は既にあるので、残るのは publish だけ
-    （「Nostr Web Components」節と同じ）。
+- [ ] **相手の投稿へのリアクション（kind 7）**
+  - 返信・リポスト・共有は**対応済み**（`src/lib/postAction.ts`。全一覧と個別投稿画面のボタン行）。
+    残っているのはリアクションだけで、上の publish 経路に kind 7 を 1 つ組み立てて渡せば済む。
+  - ただし**押した結果は自分の画面に返ってこない**。カードを描くのはウィジェットで、
+    ボタン定義は一覧で 1 つなので、「リアクション済み」「リポスト済み」を投稿ごとに出す手段が無い
+    （個別投稿画面のリアクション集計には、リレーから返ってくれば載る）。
 
 - [ ] **ミュート / ブロック（kind 10000）**
   - publish は同じでも **表示側に効かない**。一覧を描くのはウィジェットで、NIP-01 のフィルタに

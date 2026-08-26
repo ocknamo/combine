@@ -13,11 +13,11 @@
  * `cacheRelay` all the same, since those relays are only settled once the relay
  * has been started with them (see `cacheRelay.svelte.ts`).
  *
- * `actions` is the same story: it puts the 詳細 button under every row, which is
- * how notifications, a profile's posts and hashtag results reach the detail
- * page. `author-action` does the same for each card's avatar and display name,
- * which is how they reach a person's page. Both arrive as
- * `nostr-timeline:action`, which `navigateOnAction` turns into navigation.
+ * `actions` is the same story: it puts 返信・リポスト・共有・詳細 under every row,
+ * which is how notifications, a profile's posts and hashtag results reach the
+ * detail page and act on a post. `author-action` does the same for each card's
+ * avatar and display name, which is how they reach a person's page. Both arrive
+ * as `nostr-timeline:action`, which `handlePostAction` acts on.
  */
 import { onMount } from 'svelte';
 import { cacheRelay } from '../cacheRelay.svelte';
@@ -31,7 +31,7 @@ import {
   type NostrFilter,
   relaysAttr,
 } from '../nostrCache';
-import { navigateOnAction } from '../postAction';
+import { handlePostAction } from '../postAction';
 import { AUTHOR_ACTION_ID, MATERIAL_ICONS, NOTE_ACTION_ID, POST_ACTIONS_ATTR } from '../postRef';
 
 let { filters }: { filters: NostrFilter[] } = $props();
@@ -66,7 +66,7 @@ const filtersJson = $derived(filtersAttr(filters));
   <p class="empty">読み込み中…</p>
 {:else}
   <nostr-timeline
-    use:navigateOnAction
+    use:handlePostAction
     filters={filtersJson}
     {relays}
     actions={POST_ACTIONS_ATTR}

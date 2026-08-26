@@ -10,7 +10,7 @@ import {
   NOSTR_CACHE_PROFILE_FRESHNESS,
   relaysAttr,
 } from '../nostrCache';
-import { navigateOnAction } from '../postAction';
+import { handlePostAction } from '../postAction';
 import { AUTHOR_ACTION_ID, MATERIAL_ICONS, NOTE_ACTION_ID, POST_ACTIONS_ATTR } from '../postRef';
 import { type SwipeDirection, swipeHorizontal } from '../swipe';
 
@@ -91,7 +91,7 @@ function onSwipe(direction: SwipeDirection): void {
   recognises the swipe only once the finger is up and never calls
   `preventDefault()`, so scrolling and taps inside the cards are untouched.
 -->
-<section use:navigateOnAction use:swipeHorizontal={onSwipe}>
+<section use:handlePostAction use:swipeHorizontal={onSwipe}>
   {#if auth.loggedIn}
     <div class="feed-switch" role="tablist" aria-label="タイムライン切り替え">
       <button

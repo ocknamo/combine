@@ -3,6 +3,7 @@ import { auth } from '../auth.svelte';
 import { cacheRelay } from '../cacheRelay.svelte';
 import { toHexPubkey, toNpub } from '../nip19';
 import { userPath } from '../postRef';
+import { appUrl, shareLink } from '../share';
 import { toast } from '../toast.svelte';
 import { truncateName } from '../truncateName';
 import BackBar from './BackBar.svelte';
@@ -33,7 +34,7 @@ const relayKey = $derived(cacheRelay.viewRelays.join(','));
 
 // The page as someone outside the app can open it: the deployment's own URL
 // (which carries the base path) with this person's hash route on the end.
-const shareUrl = $derived(npub ? `${location.origin}${location.pathname}#${userPath(npub)}` : null);
+const shareUrl = $derived(npub ? appUrl(userPath(npub)) : null);
 
 async function copyNpub() {
   if (!npub) return;
@@ -41,24 +42,8 @@ async function copyNpub() {
   toast.show('npub をコピーしました');
 }
 
-/**
- * Hand the page's URL to the OS share sheet, or to the clipboard where there is
- * none. A share the user dismissed is not a failure and must not fall back —
- * copying something they just declined to send is the one outcome they did not
- * ask for.
- */
 async function shareProfile() {
-  if (!shareUrl) return;
-  if (navigator.share) {
-    try {
-      await navigator.share({ url: shareUrl });
-      return;
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-    }
-  }
-  await navigator.clipboard.writeText(shareUrl);
-  toast.show('リンクをコピーしました');
+  if (shareUrl) await shareLink(shareUrl);
 }
 </script>
 

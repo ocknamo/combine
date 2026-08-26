@@ -27,6 +27,22 @@ export function readRelaysFrom(map: RelayMap | null | undefined): string[] {
 }
 
 /**
+ * Pick the relays to publish to out of a NIP-07 relay map, the mirror of
+ * {@link readRelaysFrom}.
+ *
+ * Falls back to {@link DEFAULT_RELAYS} for the same reason: a map with no
+ * writable relay is far more likely to be a relay list combine failed to read
+ * than a deliberate "publish nowhere".
+ */
+export function writeRelaysFrom(map: RelayMap | null | undefined): string[] {
+  if (!map) return DEFAULT_RELAYS;
+  const writes = Object.entries(map)
+    .filter(([, perms]) => perms.write)
+    .map(([url]) => url);
+  return writes.length > 0 ? writes : DEFAULT_RELAYS;
+}
+
+/**
  * Pick what a view should connect to: the in-page cache relay when it is
  * running, the upstream relays directly when it is not.
  *

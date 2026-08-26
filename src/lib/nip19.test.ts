@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeBech32, toHexPubkey, toNpub } from './nip19';
+import { decodeBech32, toHexPubkey, toNevent, toNote, toNpub } from './nip19';
 
 // Test vector from NIP-19
 const NPUB = 'npub10elfcs4fr0l0r8af98jlmgdh9c8tcxjvz9qkw038js35mp4dma8qzvjptg';
@@ -42,6 +42,65 @@ describe('toNpub', () => {
 
   it('rejects invalid hex', () => {
     expect(toNpub('xyz')).toBeNull();
+  });
+});
+
+describe('toNote', () => {
+  it('encodes a hex event id', () => {
+    const note = toNote(HEX);
+    expect(note?.startsWith('note1')).toBe(true);
+    const decoded = decodeBech32(note ?? '');
+    expect(decoded?.prefix).toBe('note');
+    expect([...(decoded?.bytes ?? [])].map((b) => b.toString(16).padStart(2, '0')).join('')).toBe(
+      HEX
+    );
+  });
+
+  it('rejects anything that is not a 64-char hex id', () => {
+    expect(toNote('xyz')).toBeNull();
+    expect(toNote(HEX.slice(0, 63))).toBeNull();
+    expect(toNote('')).toBeNull();
+  });
+});
+
+describe('toNevent', () => {
+  const AUTHOR = 'b'.repeat(64);
+
+  /** The TLV records of a decoded nevent, as `{ type, value }`. */
+  function records(nevent: string): { type: number; value: number[] }[] {
+    const bytes = [...(decodeBech32(nevent)?.bytes ?? [])];
+    const out: { type: number; value: number[] }[] = [];
+    let i = 0;
+    while (i + 2 <= bytes.length) {
+      const length = bytes[i + 1];
+      out.push({ type: bytes[i], value: bytes.slice(i + 2, i + 2 + length) });
+      i += 2 + length;
+    }
+    return out;
+  }
+
+  it('carries the id, the author and one relay hint', () => {
+    const nevent = toNevent(HEX, {
+      author: AUTHOR,
+      relays: ['wss://a.example', 'wss://b.example'],
+    });
+    expect(nevent?.startsWith('nevent1')).toBe(true);
+    const tlv = records(nevent ?? '');
+    expect(tlv.map((r) => r.type)).toEqual([0, 1, 2]);
+    expect(tlv[0].value.map((b) => b.toString(16).padStart(2, '0')).join('')).toBe(HEX);
+    expect(new TextDecoder().decode(Uint8Array.from(tlv[1].value))).toBe('wss://a.example');
+    expect(tlv[2].value.map((b) => b.toString(16).padStart(2, '0')).join('')).toBe(AUTHOR);
+  });
+
+  it('falls back to note when there is no hint to carry', () => {
+    expect(toNevent(HEX)).toBe(toNote(HEX));
+    expect(toNevent(HEX, { author: null, relays: [] })).toBe(toNote(HEX));
+    // An author that is not a pubkey is no hint either.
+    expect(toNevent(HEX, { author: 'nope' })).toBe(toNote(HEX));
+  });
+
+  it('rejects an id that is not hex', () => {
+    expect(toNevent('note1xyz', { author: AUTHOR })).toBeNull();
   });
 });
 

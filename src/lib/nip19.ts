@@ -129,3 +129,42 @@ export function toNpub(hexPubkey: string): string | null {
   if (!HEX64.test(value)) return null;
   return encodeBech32('npub', hexToBytes(value));
 }
+
+/** Encode a hex event id as note. Returns null for invalid input. */
+export function toNote(hexEventId: string): string | null {
+  const value = hexEventId.trim().toLowerCase();
+  if (!HEX64.test(value)) return null;
+  return encodeBech32('note', hexToBytes(value));
+}
+
+/** One `type` / `length` / `value` record of a NIP-19 TLV payload. */
+function tlv(type: number, value: Uint8Array): number[] {
+  return [type, value.length, ...value];
+}
+
+/**
+ * Encode a hex event id as nevent, or as a `note` when there is no hint to
+ * carry. `null` for an invalid id.
+ *
+ * The author is what makes this worth more than a bare `note`: a client
+ * building a reply needs it for the `p` tag and would otherwise fetch the event
+ * to learn it. Only the first relay hint is kept — one that has the event is
+ * enough to find it, and the rest are bytes in a string a user may look at.
+ */
+export function toNevent(
+  hexEventId: string,
+  hints: { author?: string | null; relays?: string[] } = {}
+): string | null {
+  const id = hexEventId.trim().toLowerCase();
+  if (!HEX64.test(id)) return null;
+
+  const author = hints.author?.trim().toLowerCase();
+  const relay = hints.relays?.find((url) => url.trim() !== '')?.trim();
+  if (!(author && HEX64.test(author)) && !relay) return toNote(id);
+
+  // TLV: 0 = event id, 1 = relay hint (ASCII), 2 = author.
+  const bytes = [...tlv(0, hexToBytes(id))];
+  if (relay) bytes.push(...tlv(1, new TextEncoder().encode(relay)));
+  if (author && HEX64.test(author)) bytes.push(...tlv(2, hexToBytes(author)));
+  return encodeBech32('nevent', Uint8Array.from(bytes));
+}
