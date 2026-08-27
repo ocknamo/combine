@@ -85,6 +85,26 @@ export function filtersAttr(filters: NostrFilter[]): string {
   return JSON.stringify(filters);
 }
 
+/**
+ * The `ogp-proxy` attribute value, or `undefined` when there is nothing to pass.
+ *
+ * The widgets build link cards by fetching the linked page through a CORS proxy
+ * and reading its Open Graph tags — a browser cannot read another site's HTML
+ * itself. There is no sensible default: the proxy is `workers/ogp` in this
+ * repository, which every deployment runs (and pays for) as its own, so an
+ * unconfigured build simply leaves links as links rather than borrowing
+ * someone else's. Svelte drops an attribute set to `undefined`, which is how
+ * "not configured" reaches the widgets: a present attribute that is not a URL
+ * is refused there anyway, so there is no point sending one.
+ */
+export function ogpProxyAttr(raw: string | undefined): string | undefined {
+  const proxy = raw?.trim();
+  return proxy ? proxy : undefined;
+}
+
+/** Set at build time: `VITE_OGP_PROXY=https://…/ogp npm run build`. */
+export const OGP_PROXY = ogpProxyAttr(import.meta.env.VITE_OGP_PROXY);
+
 let pending: Promise<void> | null = null;
 
 /**

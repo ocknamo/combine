@@ -5,6 +5,7 @@ import {
   NOSTR_CACHE_ORIGIN,
   NOSTR_CACHE_PROFILE_FRESHNESS,
   NOSTR_CACHE_SCRIPT_URL,
+  ogpProxyAttr,
   relaysAttr,
   startCacheRelay,
 } from './nostrCache';
@@ -32,6 +33,25 @@ describe('NOSTR_CACHE_PROFILE_FRESHNESS', () => {
   it('is a positive whole number of seconds', () => {
     expect(Number.isInteger(NOSTR_CACHE_PROFILE_FRESHNESS)).toBe(true);
     expect(NOSTR_CACHE_PROFILE_FRESHNESS).toBeGreaterThan(0);
+  });
+});
+
+describe('ogpProxyAttr', () => {
+  it('passes a proxy URL through', () => {
+    expect(ogpProxyAttr('https://ogp.example.workers.dev/ogp')).toBe(
+      'https://ogp.example.workers.dev/ogp'
+    );
+    expect(ogpProxyAttr('  https://ogp.example.workers.dev/ogp  ')).toBe(
+      'https://ogp.example.workers.dev/ogp'
+    );
+  });
+
+  // `undefined` is what makes Svelte leave the attribute off the element; an
+  // empty string would reach the widget as a value it has to refuse.
+  it('is undefined when the build configured no proxy', () => {
+    expect(ogpProxyAttr(undefined)).toBeUndefined();
+    expect(ogpProxyAttr('')).toBeUndefined();
+    expect(ogpProxyAttr('   ')).toBeUndefined();
   });
 });
 

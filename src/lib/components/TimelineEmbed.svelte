@@ -29,6 +29,7 @@ import {
   NOSTR_CACHE_PATH,
   NOSTR_CACHE_PROFILE_FRESHNESS,
   type NostrFilter,
+  OGP_PROXY,
   relaysAttr,
 } from '../nostrCache';
 import { handlePostAction } from '../postAction';
@@ -73,6 +74,7 @@ const filtersJson = $derived(filtersAttr(filters));
     author-action={AUTHOR_ACTION_ID}
     note-action={NOTE_ACTION_ID}
     material-icons={MATERIAL_ICONS}
+    ogp-proxy={OGP_PROXY}
     db-name={NOSTR_CACHE_DB_NAME}
     profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
   ></nostr-timeline>

@@ -1,25 +1,24 @@
 /**
- * OGP metadata API.
+ * HTML fetching proxy for link cards.
  *
- * `GET /ogp?url=<page>` fetches the page and answers with the Open Graph
- * metadata found in it, as JSON. It exists because a browser cannot do this
- * itself: an arbitrary site sends no CORS headers, so a link card has to be
- * built somewhere with no same-origin policy. A Worker is that somewhere, and
- * it is also a cache — the same link shared by fifty people is fetched once.
+ * `GET /ogp?url=<page>` fetches the page and answers with its HTML. It exists
+ * because a browser cannot do this itself: an arbitrary site sends no CORS
+ * headers, so the HTML behind a link has to be fetched somewhere with no
+ * same-origin policy. A Worker is that somewhere, and it is also a cache — the
+ * same link shared by fifty people is fetched once.
  *
- * The endpoint is meant to be handed to combine's embedded timeline widget,
- * which would ask it about the links it finds in a note — the app does not call
- * it itself, and does not pass it to the widget yet. That makes this public and
- * unauthenticated by nature, so the guards matter:
- * only public http(s) URLs are fetched (`target-url.ts`), only HTML is read,
- * only the first 256 KiB of it, and only for a few seconds.
+ * The metadata is read out of that HTML by the caller, not here: combine's
+ * embedded timeline widget takes this URL as `ogp-proxy` and parses the answer
+ * itself (nostr-cache#89 replaced the JSON API this used to be). That makes
+ * this public and unauthenticated by nature, so the guards matter: only public
+ * http(s) URLs are fetched (`target-url.ts`), only HTML is read, only the first
+ * 256 KiB of it, and only for a few seconds.
  *
  * Everything below `handleRequest` is deliberately runtime-agnostic so the
  * whole flow can be exercised with a stubbed `fetch` and cache in the app's
  * test suite; only the default export touches Workers' globals.
  */
 import { decodeHtml } from './decode-html';
-import { type OgpMetadata, parseOgp } from './parse-ogp';
 import { parseTargetUrl, type TargetUrlError } from './target-url';
 
 export interface Env {
@@ -92,13 +91,6 @@ const ERROR_STATUS: Record<ErrorCode, number> = {
   fetch_failed: 502,
 };
 
-export interface OgpResponse extends OgpMetadata {
-  /** The URL as asked for, before redirects and before `og:url` replaced it. */
-  requestedUrl: string;
-  /** Unix seconds, so a caller can tell a fresh answer from a cached one. */
-  fetchedAt: number;
-}
-
 function number(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
@@ -125,29 +117,50 @@ function corsHeaders(request: Request, env: Env): Record<string, string> {
   return { vary: 'Origin' };
 }
 
-function json(body: unknown, status: number, ttl: number, cors: Record<string, string>): Response {
-  return new Response(JSON.stringify(body), {
-    status,
+/**
+ * Someone else's page, served from this Worker's own origin.
+ *
+ * That is what the caller asked for and it is harmless to `fetch` — but opened
+ * directly, the same answer would be a document on this origin running the
+ * target's scripts. `sandbox` with no allowances drops it into an opaque origin
+ * where nothing runs, and `nosniff` keeps the declared type from being
+ * second-guessed. Neither is visible to a `fetch` + `DOMParser` caller.
+ */
+function html(body: string, ttl: number, cors: Record<string, string>): Response {
+  return new Response(body, {
+    status: 200,
     headers: {
-      'content-type': 'application/json; charset=utf-8',
+      'content-type': 'text/html; charset=utf-8',
       'cache-control': `public, max-age=${ttl}`,
+      'content-security-policy': 'sandbox',
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'no-referrer',
       ...cors,
     },
   });
 }
 
+/**
+ * Why nothing came back, as JSON.
+ *
+ * The widget only looks at whether the answer is HTML, so to it any failure is
+ * simply "no card". The body is for whoever curls this endpoint to find out
+ * which of the guards, or which upstream status, stopped the fetch.
+ */
 function failure(
   code: ErrorCode,
   env: Env,
   cors: Record<string, string>,
   detail?: Record<string, unknown>
 ): Response {
-  return json(
-    { error: code, ...detail },
-    ERROR_STATUS[code],
-    number(env.ERROR_CACHE_TTL, DEFAULT_ERROR_CACHE_TTL),
-    cors
-  );
+  return new Response(JSON.stringify({ error: code, ...detail }), {
+    status: ERROR_STATUS[code],
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': `public, max-age=${number(env.ERROR_CACHE_TTL, DEFAULT_ERROR_CACHE_TTL)}`,
+      ...cors,
+    },
+  });
 }
 
 /**
@@ -231,7 +244,7 @@ export async function handleRequest(
     return new Response(cached.body, { status: cached.status, headers });
   }
 
-  const result = await fetchMetadata(target.url, env);
+  const result = await fetchHtml(target.url, env);
   if (!result.ok) {
     return failure(result.error, env, cors, {
       requestedUrl: target.url.href,
@@ -240,7 +253,7 @@ export async function handleRequest(
   }
 
   const ttl = number(env.CACHE_TTL, DEFAULT_CACHE_TTL);
-  const response = json(result.metadata, 200, ttl, cors);
+  const response = html(result.html, ttl, cors);
   if (cache) {
     // Store without the request's CORS header; the hit path puts the right one
     // back. `clone` because the response body is about to be streamed out.
@@ -249,11 +262,9 @@ export async function handleRequest(
   return response;
 }
 
-type FetchResult =
-  | { ok: true; metadata: OgpResponse }
-  | { ok: false; error: ErrorCode; status?: number };
+type FetchResult = { ok: true; html: string } | { ok: false; error: ErrorCode; status?: number };
 
-async function fetchMetadata(url: URL, env: Env): Promise<FetchResult> {
+async function fetchHtml(url: URL, env: Env): Promise<FetchResult> {
   let current = url;
   let response: Response;
   for (let hop = 0; ; hop += 1) {
@@ -314,14 +325,10 @@ async function fetchMetadata(url: URL, env: Env): Promise<FetchResult> {
     return { ok: false, error: 'fetch_failed' };
   }
 
-  // The URL the HTML actually came from, which is what relative image paths and
-  // a relative canonical link resolve against.
-  const fetchedUrl = response.url || current.href;
-  const metadata = parseOgp(decodeHtml(bytes, contentType), fetchedUrl);
-  return {
-    ok: true,
-    metadata: { ...metadata, requestedUrl: url.href, fetchedAt: Math.floor(Date.now() / 1000) },
-  };
+  // Decoded here rather than passed through as bytes so the answer is always
+  // UTF-8: the caller reads the charset off `content-type` first, and a
+  // Shift_JIS page relabelled as UTF-8 would be mojibake in every card.
+  return { ok: true, html: decodeHtml(bytes, contentType) };
 }
 
 export default {

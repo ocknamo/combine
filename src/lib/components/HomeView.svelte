@@ -8,6 +8,7 @@ import {
   NOSTR_CACHE_ORIGIN,
   NOSTR_CACHE_PATH,
   NOSTR_CACHE_PROFILE_FRESHNESS,
+  OGP_PROXY,
   relaysAttr,
 } from '../nostrCache';
 import { handlePostAction } from '../postAction';
@@ -153,6 +154,7 @@ function onSwipe(direction: SwipeDirection): void {
           author-action={AUTHOR_ACTION_ID}
           note-action={NOTE_ACTION_ID}
           material-icons={MATERIAL_ICONS}
+          ogp-proxy={OGP_PROXY}
           db-name={NOSTR_CACHE_DB_NAME}
           profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
         ></nostr-follow-timeline>
@@ -168,6 +170,7 @@ function onSwipe(direction: SwipeDirection): void {
           author-action={AUTHOR_ACTION_ID}
           note-action={NOTE_ACTION_ID}
           material-icons={MATERIAL_ICONS}
+          ogp-proxy={OGP_PROXY}
           db-name={NOSTR_CACHE_DB_NAME}
           profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
         ></nostr-timeline>
