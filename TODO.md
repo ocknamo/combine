@@ -118,15 +118,23 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
     `auth.relays` ではなく `cacheRelay`（`upstreamRelays` / `viewRelays`）。
     `auth.relays` は起動直後に差し替わるため、そのままウィジェットに渡すと
     再購読で表示が消える（詳細は `CLAUDE.md`）。
-  - 残課題（write リレー）: 投稿（publish）は combine 自身ではなく **埋め込みの eHagaki に委譲**
-    しており（combine は `window.nostr` 経由で pubkey と `signEvent` を出すだけ、publish と
-    publish 先リレーは eHagaki 側）、Web Component にもリレーを渡す口が無い（eHagaki は
-    kind 10002 を自前で取りに行く。`getRelays` も呼ばない）。
-    `getRelays()` の write リレーは**リポストのフォールバック経路で使い始めた**
-    （`src/lib/repost.ts`。通常はブラウザ内リレーの write-through に任せる）が、
-    eHagaki に委譲している通常の投稿には届かないまま。
-    ユーザーの write リレーで publish させるには **上流への要望**か、`configureHostOwned`
-    （`EHAGAKI_WEB_COMPONENT.md`。publish もアップロードも自前になるので採っていない）が要る。
+- [x] **eHagaki にもリレーを指定する**（対応済み）
+  - 上流に `relays` プロパティが入ったので、接続前に nostr-cache のブラウザ内リレー 1 本を
+    `{ url, read: true, write: true }` で渡している（`composerRelays` / `createComposer`。
+    経緯と代償は `EHAGAKI_WEB_COMPONENT.md` の「リレーを指定する」）。
+  - これでエディタの読み（プロフィール・返信/引用のプレビュー）も combine と同じキャッシュから
+    出て、投稿もキャッシュに載ってから上流へ流れる。以前は eHagaki が自分で kind 10002 を
+    取りに行っていて、combine 側からは何も指定できなかった。
+  - 要素の一生ぶんの設定なので、`cacheRelay.resolved` を待ってから組み立て、intercept URL が
+    動いたら作り直す（`ComposeView`）。ブラウザ内リレーが無い環境では渡さない＝従来どおり
+    eHagaki の kind 10002 解決に任せる。
+
+- [ ] **ブラウザ内リレーの上流に write リレーを含める**
+  - 投稿・リポスト・リアクションはすべてブラウザ内リレー 1 本へ送り、上流へはリレー自身が流す。
+    その上流は起動時に渡した `readRelaysFrom()` の **read リレー**なので、read と write が
+    違う人の場合、投稿が本人の write リレーに載らない。
+  - 直すなら `App.svelte` が `cacheRelay.start()` に渡す集合を read ∪ write にする。
+    読み込みの宛先も増えるので、その影響（購読数・重複）とセットで考える。
   - 補足: NIP-65（kind 10002）の自分のリレーリストをリレーから取得する案も併用検討可。
 
 

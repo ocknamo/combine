@@ -97,6 +97,9 @@ eHagaki は combine が `window.nostr` に生やす NIP-07 シム（`src/lib/nip
   - 下書き・設定は combine のオリジンに保存される。ログアウトすると消す
   - エディタの見た目は combine のパレットに揃う（`--ehagaki-*`）
   - eHagaki 側のログインは自動（`auto-login`）。combine でログインしていれば追加のタップは要らない
+  - エディタの接続先も**ブラウザ内リレー 1 本**（`relays`）。プロフィールや返信・引用先の
+    プレビューは combine と同じキャッシュから出て、投稿はそのリレーが保存して上流へ流す。
+    タイムラインの表示・リポスト・リアクションと同じ経路（`src/lib/ehagakiComposer.ts`）
 - 通知（メンション・リポスト・リアクション・Zap）
 - プロフィール表示・自分の投稿一覧・npub コピー
 - プロフィールの共有（`navigator.share`、無い環境ではリンクをクリップボードへ）

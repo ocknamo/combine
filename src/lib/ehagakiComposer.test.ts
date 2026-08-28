@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   applyComposerTheme,
   COMPOSER_SHADOW_CSS,
+  type ComposerRelayEntry,
   clearEhagakiStorage,
   composerEditor,
   composerHeight,
+  composerRelays,
   createComposer,
   describeFailure,
   EHAGAKI_ASSET_BASE,
@@ -51,8 +53,12 @@ describe('bundle location', () => {
 /** There is no DOM in this test environment. */
 function fakeDocument() {
   const attributes = new Map<string, string>();
-  const element = {
-    assetBase: null as string | null,
+  const element: {
+    assetBase: string | null;
+    setAttribute: (name: string, value: string) => void;
+    relays?: readonly ComposerRelayEntry[];
+  } = {
+    assetBase: null,
     setAttribute: (name: string, value: string) => void attributes.set(name, value),
   };
   const created: string[] = [];
@@ -72,15 +78,42 @@ function fakeDocument() {
 describe('createComposer', () => {
   it('points the element at the bundle it was loaded from', () => {
     const { doc, element, created } = fakeDocument();
-    createComposer(doc);
+    createComposer(null, doc);
     expect(created).toEqual([EHAGAKI_TAG]);
     expect(element.assetBase).toBe(EHAGAKI_ASSET_BASE);
   });
 
   it('opts into NIP-07 auto-login', () => {
     const { doc, attributes } = fakeDocument();
-    createComposer(doc);
+    createComposer(null, doc);
     expect(attributes.has(EHAGAKI_AUTO_LOGIN_ATTRIBUTE)).toBe(true);
+  });
+
+  it('hands the element the relay config it was given', () => {
+    const { doc, element } = fakeDocument();
+    const relays = composerRelays('ws://cache.invalid');
+    createComposer(relays, doc);
+    expect(element.relays).toEqual(relays);
+  });
+
+  // Assigning `null` would be an invalid config rather than none of one, and
+  // the element answers that with a failed init instead of its own relays.
+  it('leaves the property alone when there is no relay to point at', () => {
+    const { doc, element } = fakeDocument();
+    createComposer(composerRelays(null), doc);
+    expect('relays' in element).toBe(false);
+  });
+});
+
+describe('composerRelays', () => {
+  it('reads from and writes to the cache relay, which needs both', () => {
+    expect(composerRelays('ws://nostr-cache.invalid')).toEqual([
+      { url: 'ws://nostr-cache.invalid', read: true, write: true },
+    ]);
+  });
+
+  it('asks for nothing when no relay is running, leaving eHagaki its own', () => {
+    expect(composerRelays(null)).toBeNull();
   });
 });
 
