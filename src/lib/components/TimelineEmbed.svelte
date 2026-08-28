@@ -1,32 +1,34 @@
 <script lang="ts">
 /**
- * Events chosen with a NIP-01 filter, rendered by the same nostr-cache widget
- * as the home timeline so every list in the app looks and behaves alike. Not a
- * caching concern: these views read through the in-page relay either way (see
- * `cacheRelay.svelte.ts`).
+ * The one nostr-cache timeline in the app: every list — home, notifications, a
+ * person's posts, hashtag results — is this component, so they all look and
+ * behave alike and the attributes below are written once.
  *
- * `db-name` and `profile-freshness` have to agree with every other holder of
- * that relay — the first acquisition configures it and a mismatch is only a
- * console warning. The element acquires it itself, so it takes the *upstream*
- * relays rather than the intercept URL, and it re-subscribes on a changed
- * `filters` or `relays`, so no view needs a {#key} around it — but it waits for
- * `cacheRelay` all the same, since those relays are only settled once the relay
- * has been started with them (see `cacheRelay.svelte.ts`).
+ * That matters beyond tidiness: `db-name` and `profile-freshness` have to agree
+ * with every other holder of the page's cache relay (the first acquisition
+ * configures it and a mismatch is only a console warning), and they have to
+ * match what `App.svelte` acquires it with.
  *
- * `actions` is the same story: it puts 返信・リポスト・共有・詳細 under every row,
- * which is how notifications, a profile's posts and hashtag results reach the
- * detail page and act on a post. `author-action` does the same for each card's
- * avatar and display name, which is how they reach a person's page. Both arrive
- * as `nostr-timeline:action`, which `handlePostAction` acts on.
+ * Which events are shown comes in one of two ways. `follows` picks the
+ * follow-timeline element, which resolves the person's kind 3 itself; anything
+ * else is a NIP-01 filter set. The two elements differ in nothing else, hence
+ * the same attributes on both.
+ *
+ * The elements acquire the relay themselves, so they take the *upstream*
+ * relays rather than the intercept URL, and they re-subscribe on a changed
+ * `filters` or `relays` — no {#key} needed, unlike `ProfileCard`.
+ *
+ * `actions` puts 返信・リポスト・リアクション・共有・詳細 under every row, which is
+ * how a list reaches the detail page and acts on a post; `author-action` does
+ * the same for each card's avatar and display name, and `note-action` for a
+ * quoted card. All of them arrive as `nostr-timeline:action`, which
+ * `handlePostAction` acts on — applied here, on the element, so a view that
+ * shows two timelines does not need (and must not add) a listener of its own.
  */
-import { onMount } from 'svelte';
 import { cacheRelay } from '../cacheRelay.svelte';
 import {
   filtersAttr,
-  loadNostrTimeline,
   NOSTR_CACHE_DB_NAME,
-  NOSTR_CACHE_ORIGIN,
-  NOSTR_CACHE_PATH,
   NOSTR_CACHE_PROFILE_FRESHNESS,
   type NostrFilter,
   OGP_PROXY,
@@ -34,56 +36,67 @@ import {
 } from '../nostrCache';
 import { handlePostAction } from '../postAction';
 import { AUTHOR_ACTION_ID, MATERIAL_ICONS, NOTE_ACTION_ID, POST_ACTIONS_ATTR } from '../postRef';
+import WidgetGate from './WidgetGate.svelte';
 
-let { filters }: { filters: NostrFilter[] } = $props();
+let {
+  filters = null,
+  follows = null,
+  kinds = '1',
+  limit = 50,
+}: {
+  /** NIP-01 filters. Only the first 10 are read. */
+  filters?: NostrFilter[] | null;
+  /** hex pubkey whose follows to show, instead of `filters`. */
+  follows?: string | null;
+  /** Comma-separated kinds. Ignored when `filters` says which kinds it wants. */
+  kinds?: string;
+  limit?: number;
+} = $props();
 
-let ready = $state(false);
-let failed = $state(false);
-
-onMount(() => {
-  loadNostrTimeline().then(
-    () => {
-      ready = true;
-    },
-    () => {
-      failed = true;
-    }
-  );
-});
-
+// The widget parses a comma-separated string, unlike nostr-web-components.
+// Read from `cacheRelay`, not `auth`: a changed `relays` attribute restarts the
+// widget, and `auth.relays` changes seconds into the session — see
+// `cacheRelay.svelte.ts`.
 const relays = $derived(relaysAttr(cacheRelay.upstreamRelays));
-const filtersJson = $derived(filtersAttr(filters));
+
+// `filters` replaces the element's own `kinds` / `limit`, which it then ignores
+// with a warning — so pass one or the other, never both.
+const filtersJson = $derived(filters ? filtersAttr(filters) : undefined);
+const kindsAttr = $derived(filters ? undefined : kinds);
+const limitAttr = $derived(filters ? undefined : String(limit));
+const freshness = String(NOSTR_CACHE_PROFILE_FRESHNESS);
 </script>
 
-{#if failed}
-  <p class="empty">
-    読み込めませんでした。
-    <a href={`${NOSTR_CACHE_ORIGIN}${NOSTR_CACHE_PATH}`} target="_blank" rel="noreferrer">
-      nostr-cache
-    </a>
-    に接続できない可能性があります。
-  </p>
-{:else if !ready || !cacheRelay.resolved}
-  <p class="empty">読み込み中…</p>
-{:else}
-  <nostr-timeline
-    use:handlePostAction
-    filters={filtersJson}
-    {relays}
-    actions={POST_ACTIONS_ATTR}
-    author-action={AUTHOR_ACTION_ID}
-    note-action={NOTE_ACTION_ID}
-    material-icons={MATERIAL_ICONS}
-    ogp-proxy={OGP_PROXY}
-    db-name={NOSTR_CACHE_DB_NAME}
-    profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
-  ></nostr-timeline>
-{/if}
-
-<style>
-  .empty {
-    text-align: center;
-    color: var(--text-muted);
-    padding: 2rem 1rem;
-  }
-</style>
+<WidgetGate>
+  {#if follows}
+    <nostr-follow-timeline
+      use:handlePostAction
+      pubkey={follows}
+      kinds={kindsAttr}
+      limit={limitAttr}
+      {relays}
+      actions={POST_ACTIONS_ATTR}
+      author-action={AUTHOR_ACTION_ID}
+      note-action={NOTE_ACTION_ID}
+      material-icons={MATERIAL_ICONS}
+      ogp-proxy={OGP_PROXY}
+      db-name={NOSTR_CACHE_DB_NAME}
+      profile-freshness={freshness}
+    ></nostr-follow-timeline>
+  {:else}
+    <nostr-timeline
+      use:handlePostAction
+      filters={filtersJson}
+      kinds={kindsAttr}
+      limit={limitAttr}
+      {relays}
+      actions={POST_ACTIONS_ATTR}
+      author-action={AUTHOR_ACTION_ID}
+      note-action={NOTE_ACTION_ID}
+      material-icons={MATERIAL_ICONS}
+      ogp-proxy={OGP_PROXY}
+      db-name={NOSTR_CACHE_DB_NAME}
+      profile-freshness={freshness}
+    ></nostr-timeline>
+  {/if}
+</WidgetGate>

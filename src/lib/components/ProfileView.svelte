@@ -1,13 +1,12 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
-import { cacheRelay } from '../cacheRelay.svelte';
 import { toHexPubkey, toNpub } from '../nip19';
 import { userPath } from '../postRef';
 import { appUrl, shareLink } from '../share';
 import { toast } from '../toast.svelte';
-import { truncateName } from '../truncateName';
 import BackBar from './BackBar.svelte';
 import LoginGate from './LoginGate.svelte';
+import ProfileCard from './ProfileCard.svelte';
 import TimelineEmbed from './TimelineEmbed.svelte';
 
 /**
@@ -27,10 +26,6 @@ const npub = $derived(hex ? toNpub(hex) : null);
 // this same page — so whose profile it is has to be read from the pubkey, not
 // from the route that reached it.
 const isSelf = $derived(hex !== null && hex === auth.pubkey);
-
-// `nostr-profile` ignores a changed `relays`, so it is keyed on the connection
-// target and rebuilt when it moves.
-const relayKey = $derived(cacheRelay.viewRelays.join(','));
 
 // The page as someone outside the app can open it: the deployment's own URL
 // (which carries the base path) with this person's hash route on the end.
@@ -61,11 +56,7 @@ async function shareProfile() {
   {:else if !hex}
     <p class="empty">ユーザーが見つかりませんでした。</p>
   {:else}
-    {#if cacheRelay.resolved}
-      {#key relayKey}
-        <nostr-profile use:truncateName={'card'} user={hex} relays={cacheRelay.viewRelays} display="card" nolink="true" theme="light"></nostr-profile>
-      {/key}
-    {/if}
+    <ProfileCard user={hex} display="card" nolink theme="light" />
 
     <div class="meta">
       <!-- Two deliberate rows: who this is (the npub, and copying it), then what
@@ -182,11 +173,5 @@ async function shareProfile() {
     font-size: 1rem;
     margin: 0.75rem 1rem 0.25rem;
     color: var(--gold-strong);
-  }
-
-  .empty {
-    text-align: center;
-    color: var(--text-muted);
-    padding: 2rem 1rem;
   }
 </style>

@@ -95,6 +95,15 @@ input[type="search"]:focus {
   border-color: var(--gold);
 }
 
+/* The line a view shows instead of content: nothing found, still loading, or
+   failed to load. Global rather than scoped because every view has one and they
+   are the same line — see `components/WidgetGate.svelte` for two of them. */
+.empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2rem 1rem;
+}
+
 /* nostr-cache's widgets render into a shadow root, so these custom properties
    are the only way in. Global rather than per view: every list in the app
    embeds one, and the detail page embeds the third element. Names come from the
