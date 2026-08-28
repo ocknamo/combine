@@ -57,10 +57,8 @@ afterEach(() => {
 });
 
 describe('handleRequest', () => {
-  it('answers with the page metadata', async () => {
-    fetchMock.mockResolvedValue(
-      Object.defineProperty(html(PAGE), 'url', { value: 'https://example.com/a' })
-    );
+  it("answers with the page's own HTML", async () => {
+    fetchMock.mockResolvedValue(html(PAGE));
 
     const response = await handleRequest(
       ask('https://example.com/a'),
@@ -70,16 +68,32 @@ describe('handleRequest', () => {
     );
 
     expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
     expect(response.headers.get('access-control-allow-origin')).toBe('*');
     expect(response.headers.get('cache-control')).toBe('public, max-age=3600');
-    await expect(response.json()).resolves.toMatchObject({
-      requestedUrl: 'https://example.com/a',
-      url: 'https://example.com/a',
-      title: '記事タイトル',
-      description: '記事の説明',
-      image: 'https://example.com/hero.png',
-    });
+    await expect(response.text()).resolves.toBe(
+      `<html><head>${PAGE}</head><body>本文</body></html>`
+    );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands the page over untouched, and inert', async () => {
+    // The caller parses this itself, so nothing here may rewrite it.
+    const page = '<html><head><script>alert(1)</script></head><body>本文</body></html>';
+    fetchMock.mockResolvedValue(
+      new Response(page, { headers: { 'content-type': 'text/html; charset=utf-8' } })
+    );
+
+    const response = await handleRequest(
+      ask('https://example.com/a'),
+      {},
+      stubContext(),
+      stubCache()
+    );
+
+    await expect(response.text()).resolves.toBe(page);
+    expect(response.headers.get('content-security-policy')).toBe('sandbox');
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
   });
 
   it('serves the second ask for a page from the cache', async () => {
@@ -99,7 +113,7 @@ describe('handleRequest', () => {
     );
 
     expect(again.headers.get('x-ogp-cache')).toBe('hit');
-    await expect(again.json()).resolves.toMatchObject({ title: '記事タイトル' });
+    await expect(again.text()).resolves.toContain('記事タイトル');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(cache.size()).toBe(1);
   });
@@ -147,12 +161,8 @@ describe('handleRequest', () => {
       stubCache()
     );
     expect(fetchMock.mock.calls[1]?.[0]).toBe('https://example.com/moved');
-    await expect(response.json()).resolves.toMatchObject({
-      requestedUrl: 'https://example.com/old',
-      title: '記事タイトル',
-      // Relative paths resolve against the page that answered, not the one asked for.
-      image: 'https://example.com/hero.png',
-    });
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toContain('記事タイトル');
   });
 
   it('gives up on a redirect loop', async () => {
@@ -178,6 +188,7 @@ describe('handleRequest', () => {
       stubCache()
     );
     expect(failed.status).toBe(502);
+    expect(failed.headers.get('content-type')).toBe('application/json; charset=utf-8');
     await expect(failed.json()).resolves.toMatchObject({ error: 'upstream_error', status: 503 });
 
     fetchMock.mockResolvedValue(
@@ -229,7 +240,10 @@ describe('handleRequest', () => {
       stubContext(),
       stubCache()
     );
-    await expect(response.json()).resolves.toMatchObject({ title: '記事タイトル' });
+    const body = await response.text();
+    expect(body).toContain('記事タイトル');
+    // ASCII padding, so one byte per character.
+    expect(body.length).toBeLessThanOrEqual(256 * 1024);
   });
 
   it('decodes a page that is not UTF-8', async () => {
@@ -248,11 +262,11 @@ describe('handleRequest', () => {
       stubContext(),
       stubCache()
     );
-    const metadata = (await response.json()) as { title: string };
-    // Node decodes Shift_JIS; a runtime that does not falls back to UTF-8, and
-    // the answer is mojibake rather than an error — either way, a 200.
+
+    // Always UTF-8 out, whatever the page declared.
     expect(response.status).toBe(200);
-    expect(typeof metadata.title).toBe('string');
+    expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
+    await expect(response.text()).resolves.toContain('日本語');
   });
 
   it('honours an origin allowlist', async () => {

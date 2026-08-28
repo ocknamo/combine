@@ -27,7 +27,10 @@ jobs:
       - run: npm run check
       - run: npm run lint
       - run: npm run test
+      # Unset until the OGP proxy is deployed, which means no link cards.
       - run: npm run build
+        env:
+          VITE_OGP_PROXY: ${{ vars.VITE_OGP_PROXY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

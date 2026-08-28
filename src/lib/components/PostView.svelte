@@ -26,6 +26,7 @@ import {
   NOSTR_CACHE_ORIGIN,
   NOSTR_CACHE_PATH,
   NOSTR_CACHE_PROFILE_FRESHNESS,
+  OGP_PROXY,
   relaysAttr,
 } from '../nostrCache';
 import { handlePostAction } from '../postAction';
@@ -89,6 +90,7 @@ const relays = $derived(relaysAttr(cacheRelay.upstreamRelays));
       note-action={NOTE_ACTION_ID}
       material-icons={MATERIAL_ICONS}
       {relays}
+      ogp-proxy={OGP_PROXY}
       db-name={NOSTR_CACHE_DB_NAME}
       profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
     ></nostr-post>

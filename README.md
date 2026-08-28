@@ -116,10 +116,20 @@ npm run format       # biome フォーマット
 npm run test         # vitest（workers/ogp のテストもここで走る）
 ```
 
-`workers/ogp` はリンクカード用に OGP メタデータを返す Cloudflare Workers の API
-（`GET /ogp?url=…`）。**まだアプリからは使っていない**——アプリ側で使うには、埋め込み
-ウィジェットにこのエンドポイントを渡す必要がある。契約と設計は `workers/ogp/README.md`。
+`workers/ogp` はリンクカード用の CORS プロキシ（Cloudflare Workers。`GET /ogp?url=…` に
+対象ページの HTML を返す）。OGP タグを読むのは埋め込みウィジェット側で、combine はこの URL を
+`ogp-proxy` 属性として渡すだけ。契約と設計は `workers/ogp/README.md`。
 デプロイ単位が別なので依存も別にしてある。
+
+渡す URL はビルド時の `VITE_OGP_PROXY` から取る。**未設定ならリンクカードは出ない**
+（属性ごと付けない）——既定のプロキシは無く、各デプロイが自分の Worker を使う前提。
+
+```bash
+VITE_OGP_PROXY=http://localhost:8787/ogp npm run dev   # 手元の Worker に向ける
+```
+
+GitHub Pages 向けには、リポジトリ変数 `VITE_OGP_PROXY` を設定するとデプロイに乗る
+（`.github/workflows/deploy.yml`）。
 
 ```bash
 cd workers/ogp
