@@ -57,6 +57,10 @@ combine の投稿エディタは eHagaki の埋め込み。iframe（`ehagaki.emb
   前の人の書きかけが見えてはいけない）。代償として eHagaki 側の設定も消える。
 - **認証**: 生成時に `auto-login` 属性を付ける。eHagaki が保存済みアカウントを復元できないとき、
   combine の `window.nostr` シムでそのままログインする（下記「認証」）。
+- **リレー**: 生成時に `relays` プロパティで nostr-cache のブラウザ内リレー 1 本を渡す
+  （`composerRelays`。下記「リレーを指定する」）。読みも書きもそのリレーを通るので、
+  エディタの読むもの（プロフィール・返信/引用のプレビュー）は combine と同じキャッシュから出て、
+  投稿はキャッシュに載ってから上流へ流れる。
 - **エラー**: `ehagaki-post-error` の detail は `{ code }` だけで、iframe 時代にあった `message` が無い。
   日本語メッセージは combine 側で持つ（`postErrorMessage`）。`empty_content` は eHagaki 自身が
   UI で言うのでトーストは出さない。
@@ -71,7 +75,8 @@ combine の投稿エディタは eHagaki の埋め込み。iframe（`ehagaki.emb
 Web Component は NIP-07 として**ホストの `window.nostr` を直接使う**。combine は Nosskey の
 iframe を直接叩いていて `window.nostr` を生やしていなかったので、シムを足してある
 （`src/lib/nip07.ts`）。eHagaki が実際に呼ぶのは `getPublicKey` と `signEvent` の 2 つだけで、
-`getRelays` は使わず write リレーは kind 10002 を自前で取りに行く。
+`getRelays` は使わない。リレーは kind 10002 を自前で取りに行く——**`relays` を渡さなければ**。
+渡した場合はそちらが session まるごとの答えになる（下記「リレーを指定する」）。
 
 ### 自動ログイン（`auto-login`）
 
@@ -109,6 +114,80 @@ iframe を直接叩いていて `window.nostr` を生やしていなかったの
 `getPublicKey` をキャッシュから返すのはこのためでもある。eHagaki は復元時にも自動ログイン時にも
 `authenticate()` を呼ぶので、Nosskey の iframe へ往復させると起動のたびに不意のパスキー確認が
 出かねない。
+
+## リレーを指定する（`relays`）
+
+**上流に「埋め込み側がリレーを指定する口」が入った**ので、nostr-cache のブラウザ内リレーを
+渡すようにした。これで**エディタも combine と同じキャッシュに載る**。
+
+Full 配布版だけが持つ `relays` プロパティで、接続前に一度だけ渡す
+（HTML 属性でも `setSettings()` の項目でもない）。combine が渡すのは 1 本:
+
+```js
+element.relays = [{ url: cacheRelay.interceptUrl, read: true, write: true }];
+```
+
+`src/lib/ehagakiComposer.ts` の `composerRelays()` がこの配列を組み立て、`createComposer()` が
+`appendChild` の前に代入する（`asset-base` / `auto-login` と同じ「接続前」の枠）。
+
+### なぜブラウザ内リレー 1 本なのか
+
+読み込み側の `pickViewRelays` と、リポスト・リアクションの `publishTargets` が既にしている
+取引と同じ。ブラウザ内リレーは上流リレーの手前に立つ透過キャッシュで、read も write も
+そこを通す（`README.md` / `src/lib/nostrCache.ts`）。
+
+- **読み**（プロフィール・返信/引用のプレビュー・自分の投稿履歴・リアルタイム購読）が、
+  タイムラインの読んでいる IndexedDB から出る。以前のエディタは自分でリレーに繋いでいて、
+  同じ kind 0 をもう一度取りに行っていた。
+- **書き**（投稿・再送・削除）はブラウザ内リレーが検証・保存して `OK` を返し、上流へは
+  リレー自身が流す。**投稿がキャッシュに載る**ので、自分のタイムラインにはリレーから
+  返ってくるのを待たずに出る。
+
+`read` と `write` の両方を立てるのは必須。write リレーが 1 本も無い Config は
+「従来どおり投稿する」ではなく、**投稿が毎回 `no_write_relays` で失敗する**。
+
+### 代償
+
+- **`OK` の意味が変わる**。返すのはブラウザ内リレーで、上流への転送は fire-and-forget。
+  つまり「投稿しました」は「保存して上流へ渡した」まで。combine 自身の publish が既に
+  払っている代償と同じ（`publishOwn.ts`）。
+- **上流はユーザーの read リレー**。ブラウザ内リレーは起動時の `upstreamRelays` へ流すが、
+  それは `readRelaysFrom()`（`App.svelte`）の read リレーで、write リレーではない。
+  read と write が違う人の投稿は、以前 eHagaki が kind 10002 から選んでいた宛先とは
+  ずれる。これは `relays` の問題ではなくブラウザ内リレーの上流の選び方の問題で、
+  リポスト・リアクションも同じずれを持っている（TODO の「リレー設定」に残した）。
+
+### mount 単位であること
+
+渡した Config は eHagaki の**その要素の一生ぶん**の答えになる。kind 10002 を取りに行く経路
+（`fetchUserRelays`）は Config があると最初に短絡して `source: "host"` を返すので、
+NIP-65 は読まれない。保存もされない（IndexedDB にも kind 10002 にも次回の埋め込みにも残らない）。
+
+接続後に `relays` を書き換えても現在のセッションは切り替わらないので、**変えたければ要素を
+作り直すしかない**。`ComposeView` はアカウントと同じ扱いで、要素を建てたときの intercept URL
+（`builtWith`）が動いたら作り直す。
+
+そのため、**`cacheRelay.resolved` を待ってから組み立てる**ようになった。`idle` は
+「キャッシュが無い」ではなく「まだ分からない」で、そこで建てるとタブを開いているあいだ
+ずっと eHagaki が自前でリレーを解決する要素になってしまう。待つのは他のビューと同じ作法で
+（`cacheRelay.svelte.ts`）、ついでにログイン・ログアウトに伴うリレーの建て直し（`stop` →
+`start`）を「リレーが消えた」と読まずに済む——読んでしまうと書きかけの下書きごと要素を
+壊すことになる。
+
+### 壊れ方
+
+- **ブラウザ内リレーが無いとき**は `relays` を**付けない**（`composerRelays(null)` は `null`）。
+  eHagaki が従来どおり kind 10002 を自前で取る。combine の持っているリレー一覧を代わりに
+  渡さないのは、それが read リレーで、署名側が何も答えなければ `DEFAULT_RELAYS` に落ちる
+  ——eHagaki 自身の解決の方が良い答えだから。なお `null` の代入は「指定なし」ではなく
+  **不正な Config** として扱われ、`initialization_failed` になる。付けないことが「指定なし」。
+- **古いバンドルがキャッシュから来たとき**は、知らないプロパティが要素に生えるだけで無視される。
+  `auto-login` と同じ壊れ方で、eHagaki が自前でリレーを解決する昔の挙動に戻る。
+- **不正な Config**（credential 付き URL・重複・空配列・`ws:` / `wss:` 以外・上流が廃止済みと
+  している URL）は部分採用も fallback もされず、要素全体が `initialization_failed` になる。
+  combine が渡すのは `ws://nostr-cache.invalid` 1 本なので通る（正規化は
+  nostr-tools の `normalizeURL`。nostr-cache 側の横取り判定は `new URL(x).toString()` での
+  比較なので、末尾スラッシュの差では外れない）。
 
 ## 配色を combine に寄せる（`--ehagaki-*` で届かないところ）
 
@@ -392,6 +471,10 @@ kb top 49.0 h 322.0 bottom 371.0 w 411
   （実際にアプリをビルドして、タブをタップして `shadowRoot.activeElement` が
   contenteditable になることを見た）。**ソフトキーボードが実際に上がるかは実機でしか見られない。**
   iOS Safari が本番。
+- [ ] **投稿がブラウザ内リレー経由で通ることの確認**（上記「リレーを指定する」）。手元で見て
+  あるのは Config が要素に渡ること（テスト）と、URL の正規化が横取り側と一致することまで。
+  実際に投稿してみて、`OK` が返り上流へ流れ、自分のタイムラインに即座に出るところは未確認。
+  リレー設定ダイアログが「ホストの Config で動いている」表示になることも見ておきたい。
 - [ ] **Dexie のバージョンを上流で揃える**（上記）。揃えば `shieldDexieRegistry` は削除できる。
 - [ ] **データ移行は無い**。iframe 時代の下書き・設定は引き継がれない（別オリジンの storage）。
 - [ ] `composer.focus` 相当は Web Component 版にも無い。いまは ShadowRoot 越しに
@@ -441,7 +524,7 @@ combine は Nosskey のシムを既に生やしていて他に得るものが無
 
 `configureHostOwned({ submit, uploadMedia })` を接続前に一度呼ぶと、eHagaki は認証も
 リレーも target 取得も始めない。ログイン UI 自体が出なくなるので初回 1 タップは消え、
-publish 先も combine が決められる（TODO の「リレー設定」の write リレー問題も片付く）。
+publish 先も combine が決められる。
 
 ただし代わりに combine が持つことになるものが大きい:
 
@@ -455,8 +538,9 @@ publish 先も combine が決められる（TODO の「リレー設定」の wri
 
 **実装量の割に得るものが少ないので採らない。** そもそも eHagaki を埋め込む理由は、エディタと
 メディアの圧縮・アップロードをまるごと借りることにある。4 を自前で持つ時点でその理由が薄れ、
-得られるのは初回 1 タップの解消と write リレーの選択権だけになる。前者は上の自動ログインで、
-後者は eHagaki 自身の kind 10002 取得で解ける類の話で、どちらもこの実装量に見合わない。
+得られるのは初回 1 タップの解消と publish 先の選択権だけになる。**その 2 つとも上流に入った**
+——前者は `auto-login`、後者は `relays`（上記「リレーを指定する」）で、どちらも属性か
+プロパティ 1 つで済む。host-owned を選ぶ理由はもう残っていない。
 
 なお 3 と 4 は TODO の「publish 経路が要る（本丸）」と同じ土台なので、そちらを別の理由
 （リアクション・リポスト・フォロー）で作ったなら、host-owned は後から選べる選択肢として残る。

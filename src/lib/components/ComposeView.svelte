@@ -10,6 +10,7 @@
  * itself stays mounted for the app's lifetime (see `App.svelte`).
  */
 import { auth } from '../auth.svelte';
+import { cacheRelay } from '../cacheRelay.svelte';
 import { composeContext } from '../composeContext.svelte';
 import { setComposeFocusHandler } from '../composeFocus';
 import {
@@ -17,6 +18,7 @@ import {
   type ComposerContext,
   clearEhagakiStorage,
   composerHeight,
+  composerRelays,
   createComposer,
   describeFailure,
   EHAGAKI_SETTINGS,
@@ -51,6 +53,12 @@ let mounting = false;
 let remounted = false;
 /** The account the live element was built for. */
 let builtFor: string | null = null;
+/**
+ * The cache relay URL the live element was built with, or `null` for an element
+ * built without one. The Relay Config is fixed when the element connects, so
+ * this is what says whether the live one is still the right element.
+ */
+let builtWith: string | null = null;
 /** Set while the element is still coming up, and applied once it is ready. */
 let pendingContext: ComposerContext | null = null;
 /** A caret asked for before there was an editor to put it in. */
@@ -83,10 +91,15 @@ async function mountComposer(): Promise<void> {
     // The teardown path runs while this is in flight if the user logs out.
     const host = hostEl;
     if (!host) return;
-    const element = createComposer();
+    // The editor reads through combine's own cache relay, and posts through it
+    // too — see `composerRelays`. Read here rather than passed in: it is fixed
+    // for the element being built, and the effect below rebuilds if it moves.
+    const intercept = cacheRelay.interceptUrl;
+    const element = createComposer(composerRelays(intercept));
     host.appendChild(element);
     composer = element;
     builtFor = auth.pubkey;
+    builtWith = intercept;
     // Before the editor's first paint: connecting is what attaches the shadow
     // root this writes into, and that happened on the line above.
     applyComposerTheme(element);
@@ -151,6 +164,7 @@ function teardown(): void {
   composer?.remove();
   composer = null;
   builtFor = null;
+  builtWith = null;
   pendingContext = null;
   focusWanted = false;
   contextLabel = null;
@@ -188,12 +202,22 @@ function applyHeight(): void {
 
 // Build it once this tab is opened, and rebuild it when the account changes:
 // eHagaki decides who is signed in from its own storage, so an element built
-// for the previous account would go on posting as them.
+// for the previous account would go on posting as them. A changed cache relay
+// is the same kind of stale: the Relay Config is read when the element
+// connects, and a new one is the only way to hand it another.
+//
+// Waiting for `resolved` is what the other views do, and here it decides more
+// than a placeholder: an element built while the answer was still `idle` would
+// be one that resolves its own relays for as long as this tab stays open. It is
+// also what keeps a restart (login, logout — `cacheRelay.svelte.ts`) from
+// reading as "the relay went away" and taking a half-written draft with it.
 $effect(() => {
   const pubkey = auth.pubkey;
-  const shouldMount = active && pubkey !== null && hostEl !== null;
-  if (composer && builtFor !== pubkey) teardown();
-  if (shouldMount) void mountComposer();
+  const resolved = cacheRelay.resolved;
+  const intercept = cacheRelay.interceptUrl;
+  const stale = builtFor !== pubkey || (resolved && builtWith !== intercept);
+  if (composer && stale) teardown();
+  if (resolved && active && pubkey !== null && hostEl !== null) void mountComposer();
 });
 
 // The tab bar has no reference to this view, and the answer it needs cannot
@@ -348,7 +372,7 @@ function setContext(context: ComposerContext): void {
       <p class="context">{contextLabel}</p>
     {/if}
 
-    {#if status === 'loading'}
+    {#if status === 'loading' || !cacheRelay.resolved}
       <p class="state">エディタを読み込み中…</p>
     {:else if status === 'failed'}
       <div class="state" role="alert">

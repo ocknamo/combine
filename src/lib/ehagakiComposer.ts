@@ -110,8 +110,58 @@ export interface ComposerSettings {
   clientTagEnabled?: boolean;
 }
 
+/**
+ * One relay in eHagaki's mount-scoped Relay Config (the `relays` property).
+ *
+ * Both flags are required and at least one has to be true: the element
+ * validates the array as a whole and refuses all of it — with an
+ * `initialization_failed` — rather than dropping the entry it dislikes.
+ */
+export interface ComposerRelayEntry {
+  url: string;
+  read: boolean;
+  write: boolean;
+}
+
+/**
+ * The Relay Config to give the composer: the page's in-browser relay, or none.
+ *
+ * Pointing the editor at nostr-cache's one intercept URL is the same trade the
+ * views and `publishOwn.ts` already make (see `pickViewRelays` and
+ * `publishTargets`). What eHagaki reads — the profile it shows, the reply and
+ * quote previews, its own post history — comes out of the IndexedDB the
+ * timeline reads through, instead of a second set of connections that cache
+ * nothing. What it posts is stored by that relay and forwarded upstream by it,
+ * so a new post is on combine's timeline without waiting for a relay to send it
+ * back.
+ *
+ * `read` and `write` on the same entry, because a read-only config is not
+ * "post the way you used to": it is `no_write_relays` on every post.
+ *
+ * `null` when no relay is running. Then eHagaki resolves relays for itself off
+ * kind 10002, which is what it did before this property existed — a better
+ * fallback than combine's own list, which is the user's *read* relays and turns
+ * into `DEFAULT_RELAYS` (`relays.ts`) whenever the signer has nothing to say.
+ */
+export function composerRelays(interceptUrl: string | null): ComposerRelayEntry[] | null {
+  return interceptUrl ? [{ url: interceptUrl, read: true, write: true }] : null;
+}
+
 export interface EhagakiComposerElement extends HTMLElement {
   assetBase: string | null;
+  /**
+   * This mount's Relay Config, which replaces eHagaki's own relay resolution
+   * for the life of the element — it never reads kind 10002 and never stores
+   * this. Has to be set before the element is connected, and a later change
+   * only takes effect on a new element, so combine rebuilds instead (see
+   * `ComposeView.svelte`).
+   *
+   * Optional because only the Full distribution defines it: on a cached older
+   * bundle the assignment is an inert own property and eHagaki goes back to
+   * resolving its own relays, which is the same graceful loss `auto-login`
+   * takes.
+   */
+  relays?: readonly ComposerRelayEntry[];
   /**
    * Resolves once mounted; rejects on a failed init or an early disconnect.
    * With `auto-login`, not until the login attempt has settled.
@@ -183,17 +233,24 @@ export function loadEhagakiComposer(): Promise<void> {
 }
 
 /**
- * Build the element. Both have to be set before it is connected: the Web
+ * Build the element. All three have to be set before it is connected: the Web
  * Component entry opts out of the standalone build's "assets sit next to the
- * document" default, which would look for them on combine's origin, and the
- * login attempt happens as part of the mount.
+ * document" default, which would look for them on combine's origin; the login
+ * attempt happens as part of the mount; and the Relay Config is read once, when
+ * the element connects.
  */
 export function createComposer(
+  relays: readonly ComposerRelayEntry[] | null = null,
   doc: Pick<Document, 'createElement'> = document
 ): EhagakiComposerElement {
   const element = doc.createElement(EHAGAKI_TAG) as EhagakiComposerElement;
   element.assetBase = EHAGAKI_ASSET_BASE;
   element.setAttribute(EHAGAKI_AUTO_LOGIN_ATTRIBUTE, '');
+  // Only when there is one to set. `null` does not read as "no config" — the
+  // setter validates it like any other value, and the element comes up as a
+  // failed init instead of falling back to its own relays. Leaving the property
+  // alone is what asks for that fallback.
+  if (relays) element.relays = relays;
   return element;
 }
 
