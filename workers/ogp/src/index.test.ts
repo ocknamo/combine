@@ -78,9 +78,7 @@ describe('handleRequest', () => {
   });
 
   it('hands the page over untouched, and inert', async () => {
-    // The caller parses this itself, so nothing here may rewrite it — but the
-    // same answer opened directly would be someone else's page on this origin,
-    // which is what the sandbox is for.
+    // The caller parses this itself, so nothing here may rewrite it.
     const page = '<html><head><script>alert(1)</script></head><body>本文</body></html>';
     fetchMock.mockResolvedValue(
       new Response(page, { headers: { 'content-type': 'text/html; charset=utf-8' } })
@@ -190,7 +188,6 @@ describe('handleRequest', () => {
       stubCache()
     );
     expect(failed.status).toBe(502);
-    // Not HTML, so the widget reads it as "no card"; the body says why.
     expect(failed.headers.get('content-type')).toBe('application/json; charset=utf-8');
     await expect(failed.json()).resolves.toMatchObject({ error: 'upstream_error', status: 503 });
 
@@ -245,7 +242,7 @@ describe('handleRequest', () => {
     );
     const body = await response.text();
     expect(body).toContain('記事タイトル');
-    // ASCII padding, so one byte per character: the answer stops at the cap.
+    // ASCII padding, so one byte per character.
     expect(body.length).toBeLessThanOrEqual(256 * 1024);
   });
 
@@ -266,8 +263,7 @@ describe('handleRequest', () => {
       stubCache()
     );
 
-    // Always UTF-8 on the way out, whatever the page declared: the caller reads
-    // the charset off `content-type` and would trust a lie.
+    // Always UTF-8 out, whatever the page declared.
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
     await expect(response.text()).resolves.toContain('日本語');

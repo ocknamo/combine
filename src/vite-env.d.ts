@@ -2,11 +2,8 @@
 
 interface ImportMetaEnv {
   /**
-   * CORS proxy the timeline widgets fetch link previews through, if any.
-   *
-   * Declared here because `vite/client` types every other `VITE_*` as `any`,
-   * and the code below leans on the difference between an unset value and a
-   * URL: unset means the app passes no `ogp-proxy` at all (see `nostrCache.ts`).
+   * Declared because `vite/client` types every `VITE_*` as `any`, and
+   * `nostrCache.ts` hinges on the difference between unset and a URL.
    */
   readonly VITE_OGP_PROXY?: string;
 }

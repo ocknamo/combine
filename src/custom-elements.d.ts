@@ -54,10 +54,9 @@ type NostrCacheAttributes = HTMLAttributes<HTMLElement> & {
   /** Accessible name for the above. Defaults to 「投稿を開く」. */
   'note-action-label'?: string;
   /**
-   * CORS proxy the element fetches link previews through: it asks
-   * `{proxy}?url=<linked page>` and reads the Open Graph tags out of the HTML
-   * that comes back. Without it a link stays a plain link. See
-   * `lib/nostrCache.ts`, and `workers/ogp` for the proxy itself.
+   * CORS proxy for link previews: the element asks `{proxy}?url=<linked page>`
+   * and reads the tags out of the HTML. Without it a link stays a plain link.
+   * See `lib/nostrCache.ts` and `workers/ogp`.
    */
   'ogp-proxy'?: string;
   'material-icons'?: string | boolean;

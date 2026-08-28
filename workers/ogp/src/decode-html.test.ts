@@ -3,7 +3,7 @@ import { decodeHtml, detectCharset } from './decode-html';
 
 const utf8 = new TextEncoder();
 
-/** Shift_JIS 「日本語」, the bytes an older Japanese page would send. */
+/** Shift_JIS 「日本語」. */
 const SHIFT_JIS = new Uint8Array([0x93, 0xfa, 0x96, 0x7b, 0x8c, 0xea]);
 
 describe('detectCharset', () => {
@@ -32,7 +32,7 @@ describe('decodeHtml', () => {
   });
 
   it('falls back to UTF-8 rather than failing on a label the runtime lacks', () => {
-    // A mojibake title still makes a card; a thrown error makes a 500.
+    // Mojibake still makes a card; a thrown error makes a 500.
     expect(decodeHtml(utf8.encode('日本語'), 'text/html; charset=x-made-up')).toBe('日本語');
   });
 });

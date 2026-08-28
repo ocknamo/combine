@@ -46,8 +46,7 @@ describe('ogpProxyAttr', () => {
     );
   });
 
-  // `undefined` is what makes Svelte leave the attribute off the element; an
-  // empty string would reach the widget as a value it has to refuse.
+  // `undefined` is what makes Svelte leave the attribute off the element.
   it('is undefined when the build configured no proxy', () => {
     expect(ogpProxyAttr(undefined)).toBeUndefined();
     expect(ogpProxyAttr('')).toBeUndefined();

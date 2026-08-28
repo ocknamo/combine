@@ -1,18 +1,12 @@
 /**
  * HTML fetching proxy for link cards.
  *
- * `GET /ogp?url=<page>` fetches the page and answers with its HTML. It exists
- * because a browser cannot do this itself: an arbitrary site sends no CORS
- * headers, so the HTML behind a link has to be fetched somewhere with no
- * same-origin policy. A Worker is that somewhere, and it is also a cache — the
- * same link shared by fifty people is fetched once.
- *
- * The metadata is read out of that HTML by the caller, not here: combine's
- * embedded timeline widget takes this URL as `ogp-proxy` and parses the answer
- * itself (nostr-cache#89 replaced the JSON API this used to be). That makes
- * this public and unauthenticated by nature, so the guards matter: only public
- * http(s) URLs are fetched (`target-url.ts`), only HTML is read, only the first
- * 256 KiB of it, and only for a few seconds.
+ * A browser cannot read another site's HTML — no CORS headers — so the fetching
+ * happens here, where there is no same-origin policy, and once for everyone who
+ * shares the link. The tags are read out of the answer by the caller: the
+ * widget takes this URL as `ogp-proxy` and parses it itself (nostr-cache#89
+ * replaced the JSON API this used to be). Public and unauthenticated by nature,
+ * which is what the guards below are for.
  *
  * Everything below `handleRequest` is deliberately runtime-agnostic so the
  * whole flow can be exercised with a stubbed `fetch` and cache in the app's
@@ -118,13 +112,9 @@ function corsHeaders(request: Request, env: Env): Record<string, string> {
 }
 
 /**
- * Someone else's page, served from this Worker's own origin.
- *
- * That is what the caller asked for and it is harmless to `fetch` — but opened
- * directly, the same answer would be a document on this origin running the
- * target's scripts. `sandbox` with no allowances drops it into an opaque origin
- * where nothing runs, and `nosniff` keeps the declared type from being
- * second-guessed. Neither is visible to a `fetch` + `DOMParser` caller.
+ * Someone else's page, served from this Worker's own origin — harmless to
+ * `fetch`, but opened directly it would run the target's scripts here. The
+ * `sandbox` policy and `nosniff` stop that without a `fetch` caller noticing.
  */
 function html(body: string, ttl: number, cors: Record<string, string>): Response {
   return new Response(body, {
@@ -141,11 +131,8 @@ function html(body: string, ttl: number, cors: Record<string, string>): Response
 }
 
 /**
- * Why nothing came back, as JSON.
- *
- * The widget only looks at whether the answer is HTML, so to it any failure is
- * simply "no card". The body is for whoever curls this endpoint to find out
- * which of the guards, or which upstream status, stopped the fetch.
+ * Why nothing came back. The widget reads any non-HTML answer as "no card", so
+ * this body is for whoever curls the endpoint to find out which guard fired.
  */
 function failure(
   code: ErrorCode,
@@ -325,9 +312,8 @@ async function fetchHtml(url: URL, env: Env): Promise<FetchResult> {
     return { ok: false, error: 'fetch_failed' };
   }
 
-  // Decoded here rather than passed through as bytes so the answer is always
-  // UTF-8: the caller reads the charset off `content-type` first, and a
-  // Shift_JIS page relabelled as UTF-8 would be mojibake in every card.
+  // Always UTF-8 out: the caller trusts the charset in `content-type`, so
+  // passing a Shift_JIS page through under this header would be mojibake.
   return { ok: true, html: decodeHtml(bytes, contentType) };
 }
 
