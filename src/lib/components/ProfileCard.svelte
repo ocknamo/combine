@@ -1,16 +1,11 @@
 <script lang="ts">
 /**
- * `<nostr-profile>` with the two things every use of it in the app has to get
- * right.
+ * `<nostr-profile>`, which adopts neither a changed `relays` nor a changed
+ * `user` — hence the {#key}, or it would go on showing what it was built with.
  *
- * It is a Nostr Web Components element rather than a nostr-cache one, so it
- * takes `relays` as an array — the intercept URL when there is one, see
- * `pickViewRelays` — and it adopts neither a changed `relays` nor a changed
- * `user`. Hence the {#key}: whichever moves, the element is rebuilt for it
- * instead of going on showing what it was built with.
- *
- * The name it renders lives in a shadow root that exposes no `slot` / `::part`,
- * so `truncateName` reaches in and clamps it there.
+ * A Nostr Web Components element, not a nostr-cache one: `relays` is an array
+ * (`pickViewRelays`), and the name it renders is behind a shadow root with no
+ * `::part`, which is what `truncateName` works around.
  */
 import { cacheRelay } from '../cacheRelay.svelte';
 import { truncateName } from '../truncateName';
@@ -32,10 +27,8 @@ let {
 const key = $derived(`${user}|${cacheRelay.viewRelays.join(',')}`);
 </script>
 
-<!-- Waits for the relay for the same reason the widgets do (`WidgetGate`), but
-     shows nothing meanwhile: this element sits inside a view that is already
-     saying it is loading, or in the header, where a placeholder would only
-     flash. -->
+<!-- No placeholder while it waits: the view around it already says it is
+     loading, and in the header one would only flash. -->
 {#if cacheRelay.resolved}
   {#key key}
     <nostr-profile

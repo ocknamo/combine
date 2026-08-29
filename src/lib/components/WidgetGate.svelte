@@ -1,20 +1,11 @@
 <script lang="ts">
 /**
- * What every nostr-cache element in the app has to wait for, and what the user
- * sees until then.
+ * The two waits every nostr-cache element needs before it is mounted:
  *
- * Two waits, and they are one thing to get right rather than one per view:
- *
- * - the bundle that defines the elements (`loadNostrTimeline`). Mounting one
- *   before it lands leaves an element the browser never upgrades.
- * - the page's cache relay. A widget mounted before the relay set has settled
- *   restarts when it does, losing the events on screen — and an element that
- *   acquires the relay itself would configure it, so the app's own acquisition
- *   has to be the page's first (see `cacheRelay.svelte.ts`).
- *
- * A failed load is reported as a nostr-cache connection problem because that is
- * what it is: the bundle is served from its GitHub Pages deploy, so the link is
- * both the diagnosis and somewhere to check.
+ * - the bundle, or the browser never upgrades the element;
+ * - the cache relay, or the element restarts when the relay set settles and
+ *   loses the events on screen — and, acquiring the relay itself, it would be
+ *   the one configuring it (see `cacheRelay.svelte.ts`).
  */
 import { onMount, type Snippet } from 'svelte';
 import { cacheRelay } from '../cacheRelay.svelte';
@@ -25,8 +16,7 @@ let { children }: { children: Snippet } = $props();
 let ready = $state(false);
 let failed = $state(false);
 
-// The load is shared and memoised, so several gates on one page inject one
-// script and all resolve off the same promise.
+// Memoised: several gates on a page share one script and one promise.
 onMount(() => {
   loadNostrTimeline().then(
     () => {

@@ -1,17 +1,11 @@
 <script lang="ts">
 /**
- * One post, as the subject of the page rather than a row in a list.
+ * One post as the subject of the page: `<nostr-post>` renders it in full — no
+ * height clamp — with its reactions aggregated underneath.
  *
- * `<nostr-post>` is the third element in the nostr-cache bundle the timelines
- * already load, and unlike them it renders the post in full — no height clamp —
- * with its reactions aggregated underneath. It waits on the same `WidgetGate`
- * as they do, and like them it acquires the page's cache relay itself, so it
- * takes the *upstream* relays rather than the intercept URL and re-subscribes
- * when its attributes change.
- *
- * `db-name` and `profile-freshness` have to agree with every other holder of
- * that relay — the first acquisition configures it and a mismatch is only a
- * console warning.
+ * Same relay contract as the timelines (`TimelineEmbed`): the element acquires
+ * the cache relay itself, so it takes the upstream relays, and `db-name` /
+ * `profile-freshness` have to agree with every other holder.
  */
 import { cacheRelay } from '../cacheRelay.svelte';
 import {
@@ -46,11 +40,9 @@ const relays = $derived(relaysAttr(cacheRelay.upstreamRelays));
     <p class="empty">投稿が見つかりませんでした。</p>
   {:else}
     <WidgetGate>
-      <!-- The timelines' row minus 詳細. Only the post itself carries it: the
-           widget's reply tree takes no `actions`. `author-action` and
-           `note-action` add no row at all, and everything they point at (the
-           author, every author in the reply tree, and the posts this one quotes)
-           is somewhere else to go. -->
+      <!-- The timelines' row minus 詳細, which would lead back to this page.
+           The widget's reply tree takes no `actions`, so the row is the post's
+           own; `author-action` and `note-action` add none but still lead away. -->
       <nostr-post
         use:handlePostAction
         event-id={ref}

@@ -15,11 +15,9 @@ let feed = $state<Feed>(auth.pubkey ? 'follows' : 'global');
 // (or one whose session has not been restored yet) always gets `global`.
 const active = $derived<Feed>(feed === 'follows' && auth.pubkey ? 'follows' : 'global');
 
-// Whether each feed has been on screen at least once. Both widgets stay mounted
-// from then on and are only hidden, so switching back is instant instead of a
-// refetch — see the template. Mounting them lazily keeps the second
-// subscription off the wire for a session that never leaves the tab it landed
-// on.
+// Whether each feed has been on screen at least once (see the template).
+// Mounting lazily keeps the second subscription off the wire for a session that
+// never leaves the tab it landed on.
 let openedFollows = $state(false);
 let openedGlobal = $state(false);
 $effect(() => {
@@ -55,12 +53,9 @@ function onSwipe(direction: SwipeDirection): void {
 
 <!--
   The swipe listener sits above both feeds so the gesture works over the feed
-  itself, not only over the switcher — that is where the user's thumb is. It
-  recognises the swipe only once the finger is up and never calls
-  `preventDefault()`, so scrolling and taps inside the cards are untouched.
-
-  Taps on the cards are `TimelineEmbed`'s: it listens on the element itself, so
-  nothing here should add a second listener for them.
+  itself, where the user's thumb is, not only over the switcher. It never calls
+  `preventDefault()`, so scrolling and taps inside the cards are untouched —
+  and card taps are `TimelineEmbed`'s, so add no listener for them here.
 -->
 <section use:swipeHorizontal={onSwipe}>
   {#if auth.loggedIn}
@@ -85,13 +80,10 @@ function onSwipe(direction: SwipeDirection): void {
   {/if}
 
   <!--
-    A feed the user has opened is kept mounted and only hidden when they switch
-    away. The widgets are Svelte custom elements: taking one out of the DOM
-    destroys it, and putting it back means re-subscribing and rebuilding the
-    list from scratch, so switching tabs looked like a reload every time.
-    The cost is that once both have been opened, both hold a subscription — but
-    they read through the same in-page relay and the same IndexedDB, so it is a
-    second subscription, not a second trip upstream.
+    A feed the user has opened stays mounted and is only hidden: taking a widget
+    out of the DOM destroys it, and rebuilding the list read as a reload on
+    every tab switch. The cost is a second subscription once both are open — but
+    through the same in-page relay and IndexedDB, not a second trip upstream.
   -->
   <!-- Dropped on logout: the element has no feed to show without a pubkey. -->
   {#if openedFollows && auth.pubkey}

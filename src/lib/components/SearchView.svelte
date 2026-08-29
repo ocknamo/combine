@@ -57,9 +57,8 @@ function search(event: SubmitEvent) {
       <h2>#{result.tag}</h2>
       <TimelineEmbed filters={[{ kinds: [1], '#t': [result.tag], limit: 30 }]} />
     {:else}
-      <!-- Keyed on the person, not on the bound `query`: typing the next search
-           must not disturb the result on screen. `ProfileCard` keys on the user
-           it is given, so passing `result.user` is all that takes. -->
+      <!-- Keyed on the person, not on the bound `query`: typing the next
+           search must not disturb the result on screen. -->
       <ProfileCard user={result.user} display="card" />
       {#if result.hex}
         <h2>投稿</h2>

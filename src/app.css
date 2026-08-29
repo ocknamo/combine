@@ -95,9 +95,8 @@ input[type="search"]:focus {
   border-color: var(--gold);
 }
 
-/* The line a view shows instead of content: nothing found, still loading, or
-   failed to load. Global rather than scoped because every view has one and they
-   are the same line — see `components/WidgetGate.svelte` for two of them. */
+/* The line a view shows instead of content: not found, loading, failed to load.
+   Global because every view has one and they are the same line. */
 .empty {
   text-align: center;
   color: var(--text-muted);
