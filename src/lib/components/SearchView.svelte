@@ -1,20 +1,14 @@
 <script lang="ts">
-import { cacheRelay } from '../cacheRelay.svelte';
 import { toHexPubkey } from '../nip19';
 import { normalizePostRef, postPath } from '../postRef';
 import { router } from '../router.svelte';
-import { truncateName } from '../truncateName';
+import ProfileCard from './ProfileCard.svelte';
 import TimelineEmbed from './TimelineEmbed.svelte';
 
 type Result = { kind: 'user'; user: string; hex: string | null } | { kind: 'tag'; tag: string };
 
 let query = $state('');
 let result = $state<Result | null>(null);
-
-// `nostr-profile` ignores a changed `relays`, so the {#key} below rebuilds it
-// when the connection target moves. Its other half is `result`, not the bound
-// `query`: typing the next search must not rebuild the result on screen.
-const relayKey = $derived(cacheRelay.viewRelays.join(','));
 
 function search(event: SubmitEvent) {
   event.preventDefault();
@@ -63,11 +57,9 @@ function search(event: SubmitEvent) {
       <h2>#{result.tag}</h2>
       <TimelineEmbed filters={[{ kinds: [1], '#t': [result.tag], limit: 30 }]} />
     {:else}
-      {#if cacheRelay.resolved}
-        {#key `${result.user}|${relayKey}`}
-          <nostr-profile use:truncateName={'card'} user={result.user} relays={cacheRelay.viewRelays} display="card"></nostr-profile>
-        {/key}
-      {/if}
+      <!-- Keyed on the person, not on the bound `query`: typing the next
+           search must not disturb the result on screen. -->
+      <ProfileCard user={result.user} display="card" />
       {#if result.hex}
         <h2>投稿</h2>
         <TimelineEmbed filters={[{ kinds: [1], authors: [result.hex], limit: 30 }]} />
@@ -99,11 +91,5 @@ function search(event: SubmitEvent) {
     font-size: 1rem;
     margin: 0.5rem 1rem 0;
     color: var(--gold-strong);
-  }
-
-  .empty {
-    text-align: center;
-    color: var(--text-muted);
-    padding: 2rem 1rem;
   }
 </style>

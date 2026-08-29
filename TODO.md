@@ -97,7 +97,7 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
   - 上流の受け口は `ogp-proxy` 属性で、3 要素とも同じ（nostr-cache#89 でマージ済み。
     それ以前の `ogp-endpoint`＋JSON API は廃止）。叩き方は `GET {proxy}?url=<対象>` で、
     返すのは対象ページの HTML。解析はウィジェット側。
-  - combine 側は `HomeView` / `TimelineEmbed` / `PostView` の 4 か所に `ogp-proxy` を足し、
+  - combine 側は `TimelineEmbed` / `PostView` の 3 か所に `ogp-proxy` を足し、
     値はビルド時の `VITE_OGP_PROXY`（`src/lib/nostrCache.ts` の `OGP_PROXY`）から取る。
     未設定なら属性ごと付けない＝カード無し。
 

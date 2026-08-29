@@ -27,9 +27,10 @@ eHagaki は combine が `window.nostr` に生やす NIP-07 シム（`src/lib/nip
   - タブのタップだけでなく、横スワイプでも切り替わる（`src/lib/swipe.ts`）。
     縦スクロールの誤検知を避けるため、しきい値は広めに取ってある
 - 投稿一覧はすべて同じ nostr-cache の埋め込み
-  - 通知・プロフィールの投稿・検索結果も `nostr-timeline` に NIP-01 フィルタを渡して表示する
-    （`src/lib/components/TimelineEmbed.svelte`）。メディア・引用・メンションの扱いや
-    テーマ変数がホームタイムラインと揃う
+  - ホームも通知もプロフィールの投稿も検索結果も `src/lib/components/TimelineEmbed.svelte`
+    1 つで描く。ホームの「フォロー中」だけ `nostr-follow-timeline` に pubkey を渡し、
+    ほかは `nostr-timeline` に NIP-01 フィルタ（グローバルは kinds / limit）を渡す形。
+    メディア・引用・メンションの扱い、テーマ変数、投稿下のアクションボタンが全ビューで揃う
   - キャッシュはこれとは別の話。下記の透過キャッシュはウィジェットに寄せる前から
     全ビューに効いている
 - 全ビューの透過キャッシュ
