@@ -63,7 +63,7 @@ eHagaki は combine が `window.nostr` に生やす NIP-07 シム（`src/lib/nip
   - **リアクション**は combine 自身が kind 7（content は `+`。`e` / `p` に加えて反応先の kind を
     `k` タグで持つ。NIP-25）を組み立て、リポストと同じ経路で署名・publish する
     （`src/lib/reaction.ts`。署名と送信は両者で共通の `src/lib/publishOwn.ts`）。
-    絵文字は選べず、押せば `+` が飛ぶ
+    絵文字は選べず、押せば `+` が飛ぶ（nostr-cache が ⭐ として集計するので、ボタンも `star`）
   - **共有**は個別投稿画面の URL（`…#/post/note1…`）を `navigator.share` へ。無い環境では
     クリップボードへ（プロフィールの共有と同じ `src/lib/share.ts`）
   - 通知タブのリポスト・リアクション・Zap では、そのイベント自体ではなく `e` タグの指す
