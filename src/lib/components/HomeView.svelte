@@ -88,20 +88,10 @@ function onSwipe(direction: SwipeDirection): void {
   <!--
     Dropped on logout: the element has no feed to show without a pubkey.
 
-    kind 6 next to kind 1 so what a followee passes on is part of the feed too.
-    nostr-cache draws a repost as a 「リポスト」 header over an embed of the post
-    it names, and the action row acts on that post rather than on the repost —
-    `actionTarget` already follows the `e` tag for the notifications tab — so
-    返信 and リポスト land on what the user is looking at.
-
-    kind 16 stays out: NIP-18 uses it for reposts of everything *but* notes, and
+    kind 6 but not 16: NIP-18 uses 16 for reposts of everything *but* notes, and
     nothing else in the app shows those kinds, so the card would embed a post
-    the timeline cannot draw. (combine's own button still emits one when it has
-    such a target — it just never has one here.)
-
-    `limit` is a budget across both kinds, so a feed heavy on reposts carries
-    fewer original posts than it used to. Left at 50 rather than raised: the
-    widget has no load-more, so a larger first REQ would cost every visit.
+    the timeline cannot draw. `limit` is a budget across both kinds, left at 50
+    because the widget has no load-more and a larger first REQ costs every visit.
   -->
   {#if openedFollows && auth.pubkey}
     <div class="feed" class:hidden={active !== 'follows'}>
