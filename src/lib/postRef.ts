@@ -70,7 +70,7 @@ export const POST_REPOST_ACTION = {
 export const POST_LIKE_ACTION = {
   id: 'like',
   label: 'リアクション',
-  icon: 'favorite',
+  icon: 'star',
 } as const;
 
 /** Hands this post's page URL to the OS share sheet (see `share.ts`). */

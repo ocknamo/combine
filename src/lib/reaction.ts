@@ -11,7 +11,7 @@ import { toast } from './toast.svelte';
 
 /**
  * The content of a plain like. NIP-25 reads `+` as one, and every client that
- * shows reactions renders it as its own heart — which is why combine sends this
+ * shows reactions renders it as its own glyph — which is why combine sends this
  * rather than an emoji of its own picking, with no picker to choose another.
  */
 const LIKE = '+';
