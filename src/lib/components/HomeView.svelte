@@ -85,10 +85,17 @@ function onSwipe(direction: SwipeDirection): void {
     every tab switch. The cost is a second subscription once both are open — but
     through the same in-page relay and IndexedDB, not a second trip upstream.
   -->
-  <!-- Dropped on logout: the element has no feed to show without a pubkey. -->
+  <!--
+    Dropped on logout: the element has no feed to show without a pubkey.
+
+    kind 6 but not 16: NIP-18 uses 16 for reposts of everything *but* notes, and
+    nothing else in the app shows those kinds, so the card would embed a post
+    the timeline cannot draw. `limit` is a budget across both kinds, left at 50
+    because the widget has no load-more and a larger first REQ costs every visit.
+  -->
   {#if openedFollows && auth.pubkey}
     <div class="feed" class:hidden={active !== 'follows'}>
-      <TimelineEmbed follows={auth.pubkey} kinds="1" limit={50} />
+      <TimelineEmbed follows={auth.pubkey} kinds="1,6" limit={50} />
     </div>
   {/if}
   {#if openedGlobal}

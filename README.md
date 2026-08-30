@@ -24,6 +24,8 @@ eHagaki は combine が `window.nostr` に生やす NIP-07 シム（`src/lib/nip
 - パスキーログイン（Nosskey iframe / NIP-07 互換）
 - ホームタイムライン（フォロー中 / グローバル切り替え）
   - 「フォロー中」は `nostr-follow-timeline` が kind 3 の取得とキャッシュまで担当する
+  - 「フォロー中」は投稿（kind 1）に加えてリポスト（kind 6）も出る。アクションボタンは
+    通知タブと同じく元の投稿に効く。「グローバル」は kind 1 のみ
   - タブのタップだけでなく、横スワイプでも切り替わる（`src/lib/swipe.ts`）。
     縦スクロールの誤検知を避けるため、しきい値は広めに取ってある
 - 投稿一覧はすべて同じ nostr-cache の埋め込み
