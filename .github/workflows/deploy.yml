@@ -27,10 +27,13 @@ jobs:
       - run: npm run check
       - run: npm run lint
       - run: npm run test
-      # Unset until the OGP proxy is deployed, which means no link cards.
+      # VITE_OGP_PROXY is unset until the OGP proxy is deployed, which means no
+      # link cards. VITE_IMAGE_PROXY only overrides the default image proxy —
+      # unset is the normal case, and `off` loads images directly.
       - run: npm run build
         env:
           VITE_OGP_PROXY: ${{ vars.VITE_OGP_PROXY }}
+          VITE_IMAGE_PROXY: ${{ vars.VITE_IMAGE_PROXY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

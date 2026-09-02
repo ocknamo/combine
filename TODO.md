@@ -74,6 +74,14 @@ nostr-cache（`nostr-timeline` / `nostr-follow-timeline`）へ移行済みで、
 nostr-cache のブラウザ内リレーを経由するようになった（`src/lib/cacheRelay.svelte.ts`）。
 残っているのは下記の「表示のカスタマイズ」だけ。
 
+- [ ] **プロフィールカードの画像が画像プロキシを通らない**
+  - nostr-cache の 3 要素（タイムライン 2 つ・個別投稿）は `image-proxy` で最適化プロキシ経由に
+    なった（**対応済み**。添付・アバター・OGP サムネイル）。残るのは `nostr-profile` で、
+    ヘッダのアバターとプロフィール画面のカードだけ原寸のまま落ちてくる。
+  - `@konemono/nostr-web-components` に相当する属性は無く、Shadow DOM なので外から
+    `<img src>` を書き換える手段も無い。上流対応か、カードを自前で描くか（下記の
+    「kind 0 / kind 3 を自前で取得する薄いクライアント」があれば `<img>` は自分で出せる）。
+
 - [ ] **投稿表示のカスタマイズ（中身の改変／各投稿下にアクションボタン追加）**
   - `@konemono/nostr-web-components@0.3.0` は **Shadow DOM** でレンダリングし、
     `slot` / `::part` / `::slotted` を公開していない。

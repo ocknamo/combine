@@ -17,6 +17,7 @@
 import { cacheRelay } from '../cacheRelay.svelte';
 import {
   filtersAttr,
+  IMAGE_PROXY,
   NOSTR_CACHE_DB_NAME,
   NOSTR_CACHE_PROFILE_FRESHNESS,
   type NostrFilter,
@@ -67,6 +68,7 @@ const freshness = String(NOSTR_CACHE_PROFILE_FRESHNESS);
       note-action={NOTE_ACTION_ID}
       material-icons={MATERIAL_ICONS}
       ogp-proxy={OGP_PROXY}
+      image-proxy={IMAGE_PROXY}
       db-name={NOSTR_CACHE_DB_NAME}
       profile-freshness={freshness}
     ></nostr-follow-timeline>
@@ -82,6 +84,7 @@ const freshness = String(NOSTR_CACHE_PROFILE_FRESHNESS);
       note-action={NOTE_ACTION_ID}
       material-icons={MATERIAL_ICONS}
       ogp-proxy={OGP_PROXY}
+      image-proxy={IMAGE_PROXY}
       db-name={NOSTR_CACHE_DB_NAME}
       profile-freshness={freshness}
     ></nostr-timeline>

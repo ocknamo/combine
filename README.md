@@ -35,6 +35,11 @@ eHagaki は combine が `window.nostr` に生やす NIP-07 シム（`src/lib/nip
     メディア・引用・メンションの扱い、テーマ変数、投稿下のアクションボタンが全ビューで揃う
   - キャッシュはこれとは別の話。下記の透過キャッシュはウィジェットに寄せる前から
     全ビューに効いている
+  - 画像（本文の添付・アバター・OGP サムネイル）は画像最適化プロキシ経由で読み込む。
+    `image-proxy` に `https://nostr-image-optimizer.ocknamo.com/image` を渡していて、
+    表示する大きさに縮めた WebP が返る（動画・音声・カスタム絵文字は対象外。
+    プロキシが失敗した画像はウィジェットが元の URL で読み直す）。
+    切り替えは下記の `VITE_IMAGE_PROXY`
 - 全ビューの透過キャッシュ
   - nostr-cache がブラウザ内リレーを上流リレーの手前に挟むため、2 回目以降の表示は
     IndexedDB のキャッシュから即座に描画される
@@ -136,6 +141,22 @@ VITE_OGP_PROXY=http://localhost:8787/ogp npm run dev   # 手元の Worker に向
 
 GitHub Pages 向けには、リポジトリ変数 `VITE_OGP_PROXY` を設定するとデプロイに乗る
 （`.github/workflows/deploy.yml`）。
+
+画像は `image-proxy` 属性で画像最適化プロキシへ回す（同じ 3 か所）。組み立てるのは
+ウィジェット側で、combine が渡すのはプロキシの URL だけ
+（`{proxy}/width=…,quality=…,format=webp/{元の画像 URL}`）。こちらは OGP と違って
+**既定値がある**（`DEFAULT_IMAGE_PROXY` = `https://nostr-image-optimizer.ocknamo.com/image`）。
+各デプロイが自分で用意する必要のあるものではなく、閲覧者の通信量に直接効くため。
+代償は閲覧者の IP がそのホストに渡ること。
+
+```bash
+VITE_IMAGE_PROXY=https://images.example.com/image npm run dev  # 別のプロキシに向ける
+VITE_IMAGE_PROXY=off npm run dev                               # 元の URL から直接読む
+```
+
+`VITE_IMAGE_PROXY` は URL として読めない値（`off` など）なら属性ごと付けない＝直接読み込み。
+空文字は「未設定」として既定値に戻る（リポジトリ変数が無いときにこの値で届くため）。
+クエリやフラグメントを持つ URL は、後ろに続くパスを飲み込むので受け付けない。
 
 ```bash
 cd workers/ogp

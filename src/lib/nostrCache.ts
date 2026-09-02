@@ -100,6 +100,59 @@ export function ogpProxyAttr(raw: string | undefined): string | undefined {
 /** Set at build time: `VITE_OGP_PROXY=https://…/ogp npm run build`. */
 export const OGP_PROXY = ogpProxyAttr(import.meta.env.VITE_OGP_PROXY);
 
+/**
+ * Where the resizing proxy for images lives.
+ *
+ * The widgets load attachments, avatars and OGP thumbnails through it as
+ * `{proxy}/width=…,quality=…,format=webp/{original URL}` (nostr-cache#101), so
+ * a 40px avatar costs a 96px WebP instead of the full-size photo the author
+ * uploaded. They pick the dimensions per use; combine only says where the
+ * proxy is. Videos, audio and custom emoji stay direct.
+ *
+ * Unlike `ogp-proxy` this has a default, because the proxy is a service anyone
+ * can point at rather than something each deployment has to run. The cost of
+ * defaulting it on is that every viewer's IP reaches that host for every image
+ * — `VITE_IMAGE_PROXY=off` turns it back off (see {@link imageProxyAttr}).
+ */
+export const DEFAULT_IMAGE_PROXY = 'https://nostr-image-optimizer.ocknamo.com/image';
+
+/**
+ * Validate an image proxy, or return `undefined` to leave the attribute off —
+ * which is also how a build opts out: anything that is not an http(s) URL,
+ * `off` included, reads as "load images directly".
+ */
+export function imageProxyAttr(raw: string | undefined): string | undefined {
+  const proxy = raw?.trim();
+  if (!proxy) return undefined;
+
+  let url: URL;
+  try {
+    url = new URL(proxy);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
+  // The size spec and the original URL are appended as *path*, so a query or
+  // fragment here would swallow both. The widget refuses such a proxy as well;
+  // catching it at the build's own config keeps the refusal out of the console.
+  if (url.search || url.hash) return undefined;
+
+  // The widget joins with `/`, so a trailing one would double up.
+  return url.href.replace(/\/+$/, '');
+}
+
+/**
+ * Set at build time: `VITE_IMAGE_PROXY=https://…/image npm run build`, or
+ * `VITE_IMAGE_PROXY=off` to load images directly.
+ *
+ * Empty falls back to the default rather than switching the proxy off: an
+ * unset GitHub repository variable reaches the build as `''`, and that means
+ * "not configured", not "configured to be off".
+ */
+export const IMAGE_PROXY = imageProxyAttr(
+  import.meta.env.VITE_IMAGE_PROXY?.trim() || DEFAULT_IMAGE_PROXY
+);
+
 let pending: Promise<void> | null = null;
 
 /**

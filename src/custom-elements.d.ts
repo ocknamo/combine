@@ -59,6 +59,13 @@ type NostrCacheAttributes = HTMLAttributes<HTMLElement> & {
    * See `lib/nostrCache.ts` and `workers/ogp`.
    */
   'ogp-proxy'?: string;
+  /**
+   * Resizing proxy for images: attachments, avatars and OGP thumbnails are
+   * loaded from `{proxy}/width=…,quality=…,format=webp/<original URL>`, the
+   * element choosing the size per use. Without it every image comes straight
+   * from where the author put it. See `lib/nostrCache.ts`.
+   */
+  'image-proxy'?: string;
   'material-icons'?: string | boolean;
   'material-icons-font'?: string;
 };

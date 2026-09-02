@@ -1,6 +1,8 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
+  DEFAULT_IMAGE_PROXY,
   filtersAttr,
+  imageProxyAttr,
   NOSTR_CACHE_DB_NAME,
   NOSTR_CACHE_ORIGIN,
   NOSTR_CACHE_PROFILE_FRESHNESS,
@@ -51,6 +53,45 @@ describe('ogpProxyAttr', () => {
     expect(ogpProxyAttr(undefined)).toBeUndefined();
     expect(ogpProxyAttr('')).toBeUndefined();
     expect(ogpProxyAttr('   ')).toBeUndefined();
+  });
+});
+
+describe('imageProxyAttr', () => {
+  it('passes a proxy URL through', () => {
+    expect(imageProxyAttr(DEFAULT_IMAGE_PROXY)).toBe(DEFAULT_IMAGE_PROXY);
+    expect(imageProxyAttr(`  ${DEFAULT_IMAGE_PROXY}  `)).toBe(DEFAULT_IMAGE_PROXY);
+  });
+
+  // The widget appends `/width=…/<original URL>`, so its own slash is enough.
+  it('drops a trailing slash', () => {
+    expect(imageProxyAttr('https://images.example.com/image/')).toBe(
+      'https://images.example.com/image'
+    );
+  });
+
+  // `undefined` is what makes Svelte leave the attribute off the element, and
+  // leaving it off is how a build opts out of the proxy entirely.
+  it('is undefined for anything that is not an http(s) URL', () => {
+    expect(imageProxyAttr(undefined)).toBeUndefined();
+    expect(imageProxyAttr('')).toBeUndefined();
+    expect(imageProxyAttr('   ')).toBeUndefined();
+    expect(imageProxyAttr('off')).toBeUndefined();
+    expect(imageProxyAttr('images.example.com/image')).toBeUndefined();
+    expect(imageProxyAttr('ftp://images.example.com/image')).toBeUndefined();
+  });
+
+  // The size spec and the original URL follow as path segments, so a query or
+  // fragment would swallow them; the widget refuses such a proxy too.
+  it('is undefined when the URL carries a query or fragment', () => {
+    expect(imageProxyAttr('https://images.example.com/image?key=abc')).toBeUndefined();
+    expect(imageProxyAttr('https://images.example.com/image#frag')).toBeUndefined();
+  });
+});
+
+describe('DEFAULT_IMAGE_PROXY', () => {
+  // Shipped on by default, so it has to survive the same validation.
+  it('is a usable proxy URL', () => {
+    expect(imageProxyAttr(DEFAULT_IMAGE_PROXY)).toBe(DEFAULT_IMAGE_PROXY);
   });
 });
 
