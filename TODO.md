@@ -118,17 +118,24 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
 ## 画像プロキシ
 
 `image-proxy` の受け渡しは入れてある（[nostr-cache#101](https://github.com/ocknamo/nostr-cache/pull/101)）。
-残りは**リポジトリ変数を設定するだけ**。
 
-- [ ] **`VITE_IMAGE_PROXY` を設定する**
+- [x] **`VITE_IMAGE_PROXY` を設定する**（対応済み）
   - GitHub のリポジトリ変数に画像最適化プロキシの URL（`https://…/image`）を入れると
-    Pages のビルドに乗る（`.github/workflows/deploy.yml`）。**設定して初めて画像が
-    プロキシ経由になる**。未設定のあいだは書かれた URL から直接読み込む＝これまでどおり。
+    Pages のビルドに乗る（`.github/workflows/deploy.yml`）。未設定のあいだは書かれた
+    URL から直接読み込む＝これまでどおり。
   - `VITE_OGP_PROXY` と同じく、URL はソースに置かない（全閲覧者の画像通信がどのホストを
     通るかはデプロイの判断なので、CD から渡す）。
   - 形式は [nostr-image-optimizer](https://github.com/ocknamo/nostr-image-optimizer) の
     `{proxy}/width=…,quality=…,format=webp/{元の画像 URL}`。同じ形式を解釈するプロキシなら
     差し替えられる。クエリやフラグメントを持つ URL は受け付けない（後ろに続くパスを飲み込むため）。
+
+### 効いているか確かめるとき
+
+nostr-image-optimizer は **40kB 未満と 4MB 超の画像を変換せず素通しする**
+（`src/index.ts` の `MIN_IMAGE_FILE_SIZE` / `MAX_IMAGE_FILE_SIZE`）。プロキシ経由の
+URL は組み立てられ、リクエストもそこへ飛ぶが、返るバイト列は元画像と同一になる。
+アバターや小さめの添付はここに当たりやすく、「設定したのに効いていない」ように見える。
+動作確認は 40kB を超える画像で行う（1.7MB の PNG が 29kB の WebP になれば効いている）。
 
 ## リレー設定
 
