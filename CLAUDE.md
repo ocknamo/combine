@@ -24,5 +24,8 @@ npm run build
 ## 設定と環境変数
 
 - `VITE_*` はビルド時にバンドルへ平文で埋め込まれる＝**公開情報**。鍵の類は入れない。
-  いまは `VITE_OGP_PROXY`（リンクカード用の CORS プロキシ。未設定ならカードを出さない）だけで、
-  Pages のビルドには `.github/workflows/deploy.yml` のリポジトリ変数から渡る。
+  いまは次の 2 つで、どちらも Pages のビルドには `.github/workflows/deploy.yml` の
+  リポジトリ変数から渡る。
+  - `VITE_OGP_PROXY`（リンクカード用の CORS プロキシ。未設定ならカードを出さない）
+  - `VITE_IMAGE_PROXY`（画像最適化プロキシ。未設定なら画像を直接読み込む。
+    URL はコードに書かず、CD のリポジトリ変数から渡す）

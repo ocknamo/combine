@@ -9,6 +9,7 @@
  */
 import { cacheRelay } from '../cacheRelay.svelte';
 import {
+  IMAGE_PROXY,
   NOSTR_CACHE_DB_NAME,
   NOSTR_CACHE_PROFILE_FRESHNESS,
   OGP_PROXY,
@@ -52,6 +53,7 @@ const relays = $derived(relaysAttr(cacheRelay.upstreamRelays));
         material-icons={MATERIAL_ICONS}
         {relays}
         ogp-proxy={OGP_PROXY}
+        image-proxy={IMAGE_PROXY}
         db-name={NOSTR_CACHE_DB_NAME}
         profile-freshness={String(NOSTR_CACHE_PROFILE_FRESHNESS)}
       ></nostr-post>

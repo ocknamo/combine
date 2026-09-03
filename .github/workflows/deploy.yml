@@ -27,10 +27,13 @@ jobs:
       - run: npm run check
       - run: npm run lint
       - run: npm run test
-      # Unset until the OGP proxy is deployed, which means no link cards.
+      # Both come from repository variables and neither has a default in the
+      # source: unset means no link cards, and images loaded straight from
+      # where their author put them.
       - run: npm run build
         env:
           VITE_OGP_PROXY: ${{ vars.VITE_OGP_PROXY }}
+          VITE_IMAGE_PROXY: ${{ vars.VITE_IMAGE_PROXY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

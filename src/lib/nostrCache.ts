@@ -100,6 +100,45 @@ export function ogpProxyAttr(raw: string | undefined): string | undefined {
 /** Set at build time: `VITE_OGP_PROXY=https://…/ogp npm run build`. */
 export const OGP_PROXY = ogpProxyAttr(import.meta.env.VITE_OGP_PROXY);
 
+/**
+ * The `image-proxy` the widgets load images through.
+ *
+ * Attachments, avatars and OGP thumbnails come from
+ * `{proxy}/width=…,quality=…,format=webp/{original URL}` (nostr-cache#101), so
+ * a 40px avatar costs a 96px WebP instead of the full-size photo the author
+ * uploaded. The widgets pick the dimensions per use; combine only says where
+ * the proxy is. Videos, audio and custom emoji stay direct.
+ *
+ * No default, for the same reason as `ogp-proxy`: which host every viewer's
+ * image traffic goes through is a deployment's decision, not the source's, so
+ * an unconfigured build loads images straight from where the author put them.
+ * `undefined` is how that reaches the widgets — Svelte drops the attribute.
+ *
+ * Stricter than {@link ogpProxyAttr} because this URL is a *path prefix*: the
+ * size spec and the original URL are appended to it, so a query or fragment
+ * would swallow both. The widget refuses such a proxy as well; refusing it here
+ * keeps the warning out of every viewer's console.
+ */
+export function imageProxyAttr(raw: string | undefined): string | undefined {
+  const proxy = raw?.trim();
+  if (!proxy) return undefined;
+
+  let url: URL;
+  try {
+    url = new URL(proxy);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
+  if (url.search || url.hash) return undefined;
+
+  // The widget joins with `/`, so a trailing one would double up.
+  return url.href.replace(/\/+$/, '');
+}
+
+/** Set at build time: `VITE_IMAGE_PROXY=https://…/image npm run build`. */
+export const IMAGE_PROXY = imageProxyAttr(import.meta.env.VITE_IMAGE_PROXY);
+
 let pending: Promise<void> | null = null;
 
 /**

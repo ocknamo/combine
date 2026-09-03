@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   filtersAttr,
+  imageProxyAttr,
   NOSTR_CACHE_DB_NAME,
   NOSTR_CACHE_ORIGIN,
   NOSTR_CACHE_PROFILE_FRESHNESS,
@@ -51,6 +52,45 @@ describe('ogpProxyAttr', () => {
     expect(ogpProxyAttr(undefined)).toBeUndefined();
     expect(ogpProxyAttr('')).toBeUndefined();
     expect(ogpProxyAttr('   ')).toBeUndefined();
+  });
+});
+
+describe('imageProxyAttr', () => {
+  it('passes a proxy URL through', () => {
+    expect(imageProxyAttr('https://images.example.com/image')).toBe(
+      'https://images.example.com/image'
+    );
+    expect(imageProxyAttr('  https://images.example.com/image  ')).toBe(
+      'https://images.example.com/image'
+    );
+  });
+
+  // The widget appends `/width=…/<original URL>`, so its own slash is enough.
+  it('drops a trailing slash', () => {
+    expect(imageProxyAttr('https://images.example.com/image/')).toBe(
+      'https://images.example.com/image'
+    );
+  });
+
+  // `undefined` is what makes Svelte leave the attribute off the element, which
+  // is how an unconfigured build loads images directly.
+  it('is undefined when the build configured no proxy', () => {
+    expect(imageProxyAttr(undefined)).toBeUndefined();
+    expect(imageProxyAttr('')).toBeUndefined();
+    expect(imageProxyAttr('   ')).toBeUndefined();
+  });
+
+  it('is undefined for anything that is not an http(s) URL', () => {
+    expect(imageProxyAttr('off')).toBeUndefined();
+    expect(imageProxyAttr('images.example.com/image')).toBeUndefined();
+    expect(imageProxyAttr('ftp://images.example.com/image')).toBeUndefined();
+  });
+
+  // The size spec and the original URL follow as path segments, so a query or
+  // fragment would swallow them; the widget refuses such a proxy too.
+  it('is undefined when the URL carries a query or fragment', () => {
+    expect(imageProxyAttr('https://images.example.com/image?key=abc')).toBeUndefined();
+    expect(imageProxyAttr('https://images.example.com/image#frag')).toBeUndefined();
   });
 });
 
