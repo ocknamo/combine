@@ -1,6 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
-  DEFAULT_IMAGE_PROXY,
   filtersAttr,
   imageProxyAttr,
   NOSTR_CACHE_DB_NAME,
@@ -58,8 +57,12 @@ describe('ogpProxyAttr', () => {
 
 describe('imageProxyAttr', () => {
   it('passes a proxy URL through', () => {
-    expect(imageProxyAttr(DEFAULT_IMAGE_PROXY)).toBe(DEFAULT_IMAGE_PROXY);
-    expect(imageProxyAttr(`  ${DEFAULT_IMAGE_PROXY}  `)).toBe(DEFAULT_IMAGE_PROXY);
+    expect(imageProxyAttr('https://images.example.com/image')).toBe(
+      'https://images.example.com/image'
+    );
+    expect(imageProxyAttr('  https://images.example.com/image  ')).toBe(
+      'https://images.example.com/image'
+    );
   });
 
   // The widget appends `/width=…/<original URL>`, so its own slash is enough.
@@ -69,12 +72,15 @@ describe('imageProxyAttr', () => {
     );
   });
 
-  // `undefined` is what makes Svelte leave the attribute off the element, and
-  // leaving it off is how a build opts out of the proxy entirely.
-  it('is undefined for anything that is not an http(s) URL', () => {
+  // `undefined` is what makes Svelte leave the attribute off the element, which
+  // is how an unconfigured build loads images directly.
+  it('is undefined when the build configured no proxy', () => {
     expect(imageProxyAttr(undefined)).toBeUndefined();
     expect(imageProxyAttr('')).toBeUndefined();
     expect(imageProxyAttr('   ')).toBeUndefined();
+  });
+
+  it('is undefined for anything that is not an http(s) URL', () => {
     expect(imageProxyAttr('off')).toBeUndefined();
     expect(imageProxyAttr('images.example.com/image')).toBeUndefined();
     expect(imageProxyAttr('ftp://images.example.com/image')).toBeUndefined();
@@ -85,13 +91,6 @@ describe('imageProxyAttr', () => {
   it('is undefined when the URL carries a query or fragment', () => {
     expect(imageProxyAttr('https://images.example.com/image?key=abc')).toBeUndefined();
     expect(imageProxyAttr('https://images.example.com/image#frag')).toBeUndefined();
-  });
-});
-
-describe('DEFAULT_IMAGE_PROXY', () => {
-  // Shipped on by default, so it has to survive the same validation.
-  it('is a usable proxy URL', () => {
-    expect(imageProxyAttr(DEFAULT_IMAGE_PROXY)).toBe(DEFAULT_IMAGE_PROXY);
   });
 });
 

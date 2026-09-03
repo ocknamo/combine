@@ -27,5 +27,5 @@ npm run build
   いまは次の 2 つで、どちらも Pages のビルドには `.github/workflows/deploy.yml` の
   リポジトリ変数から渡る。
   - `VITE_OGP_PROXY`（リンクカード用の CORS プロキシ。未設定ならカードを出さない）
-  - `VITE_IMAGE_PROXY`（画像最適化プロキシ。**未設定なら既定値**
-    `https://nostr-image-optimizer.ocknamo.com/image` を使う。`off` で直接読み込みに戻る）
+  - `VITE_IMAGE_PROXY`（画像最適化プロキシ。未設定なら画像を直接読み込む。
+    URL はコードに書かず、CD のリポジトリ変数から渡す）
