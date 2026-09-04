@@ -1,5 +1,6 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
+import { follows } from '../follows.svelte';
 import { type SwipeDirection, swipeHorizontal } from '../swipe';
 import TimelineEmbed from './TimelineEmbed.svelte';
 
@@ -95,7 +96,10 @@ function onSwipe(direction: SwipeDirection): void {
   -->
   {#if openedFollows && auth.pubkey}
     <div class="feed" class:hidden={active !== 'follows'}>
-      <TimelineEmbed follows={auth.pubkey} kinds="1,6" limit={50} />
+      <!-- `reloadKey` rebuilds the element after a follow or unfollow: it
+           resolves kind 3 only when it is built, so otherwise the feed would go
+           on showing the follows the user had when they opened the tab. -->
+      <TimelineEmbed follows={auth.pubkey} kinds="1,6" limit={50} reloadKey={follows.revision} />
     </div>
   {/if}
   {#if openedGlobal}

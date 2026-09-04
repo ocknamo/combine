@@ -33,6 +33,7 @@ let {
   follows = null,
   kinds = '1',
   limit = 50,
+  reloadKey = 0,
 }: {
   /** NIP-01 filters. Only the first 10 are read. */
   filters?: NostrFilter[] | null;
@@ -41,6 +42,13 @@ let {
   /** Comma-separated. */
   kinds?: string;
   limit?: number;
+  /**
+   * Change this to rebuild the follow timeline from scratch. Only that element
+   * reads it — it resolves kind 3 once when it is built and never again, so a
+   * follow published afterwards is invisible until it is rebuilt. See the
+   * template for what a rebuild costs.
+   */
+  reloadKey?: number;
 } = $props();
 
 // From `cacheRelay`, not `auth`: a changed `relays` restarts the widget, and
@@ -57,21 +65,31 @@ const freshness = String(NOSTR_CACHE_PROFILE_FRESHNESS);
 
 <WidgetGate>
   {#if follows}
-    <nostr-follow-timeline
-      use:handlePostAction
-      pubkey={follows}
-      kinds={kindsAttr}
-      limit={limitAttr}
-      {relays}
-      actions={POST_ACTIONS_ATTR}
-      author-action={AUTHOR_ACTION_ID}
-      note-action={NOTE_ACTION_ID}
-      material-icons={MATERIAL_ICONS}
-      ogp-proxy={OGP_PROXY}
-      image-proxy={IMAGE_PROXY}
-      db-name={NOSTR_CACHE_DB_NAME}
-      profile-freshness={freshness}
-    ></nostr-follow-timeline>
+    <!--
+      Keyed on `reloadKey` so following someone shows up in the feed. Rebuilding
+      drops the posts on screen and the subscription behind them, which is why
+      nothing else in the app does it — but the kind 3 it re-reads was published
+      through the in-page relay and is already in IndexedDB, so the rebuild is
+      served from the cache rather than a round trip, and it happens only right
+      after the user changed who they follow.
+    -->
+    {#key reloadKey}
+      <nostr-follow-timeline
+        use:handlePostAction
+        pubkey={follows}
+        kinds={kindsAttr}
+        limit={limitAttr}
+        {relays}
+        actions={POST_ACTIONS_ATTR}
+        author-action={AUTHOR_ACTION_ID}
+        note-action={NOTE_ACTION_ID}
+        material-icons={MATERIAL_ICONS}
+        ogp-proxy={OGP_PROXY}
+        image-proxy={IMAGE_PROXY}
+        db-name={NOSTR_CACHE_DB_NAME}
+        profile-freshness={freshness}
+      ></nostr-follow-timeline>
+    {/key}
   {:else}
     <nostr-timeline
       use:handlePostAction
