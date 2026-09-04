@@ -53,10 +53,9 @@ const asking = $derived(follows.needsBootstrap === hex);
            first. The relays agreed there is none, but "agreed" is not proof,
            so the decision is the user's and the warning says what it costs. -->
       <div class="confirm" role="alert">
-        <p>
-          フォローリストが見つかりませんでした。新しく作成すると、他のクライアントで登録済みの
-          フォローが失われる可能性があります。
-        </p>
+        <!-- One line on purpose: a newline inside Japanese text renders as a
+             space between the characters it falls between. -->
+        <p>フォローリストが見つかりませんでした。新しく作成すると、他のクライアントで登録済みのフォローが失われる可能性があります。</p>
         <div class="confirm-actions">
           <button class="primary" onclick={() => void follows.confirmBootstrap()}>
             作成してフォロー
@@ -81,6 +80,10 @@ const asking = $derived(follows.needsBootstrap === hex);
   }
 
   .confirm {
+    /* Last on the row whatever it sits next to: the panel takes a line of its
+       own, and without this the icons after the follow button are pushed below
+       it and read as part of the warning. */
+    order: 1;
     flex-basis: 100%;
     border: 1px solid var(--danger);
     border-radius: 6px;
