@@ -21,6 +21,15 @@ const fetchContacts = vi.fn(
 const signAndPublish = vi.fn(async (_event: UnsignedEvent, _options?: PublishOwnOptions) => true);
 const show = vi.fn();
 
+// There is no DOM in this suite, and the stored copy of the last published
+// list is half of how the store survives a relay that has not caught up yet.
+const stored = new Map<string, string>();
+vi.stubGlobal('sessionStorage', {
+  getItem: (key: string) => stored.get(key) ?? null,
+  setItem: (key: string, value: string) => void stored.set(key, value),
+  removeItem: (key: string) => void stored.delete(key),
+});
+
 vi.mock('./auth.svelte', () => ({ auth }));
 vi.mock('./contactsFetch', () => ({ fetchContacts: () => fetchContacts() }));
 vi.mock('./publishOwn', () => ({
@@ -50,6 +59,7 @@ function answers(event: ContactList | null, answered = READ.length + WRITE.lengt
 // The store is the app's singleton, so each test starts it over.
 beforeEach(() => {
   vi.clearAllMocks();
+  stored.clear();
   follows.reset();
   auth.pubkey = ME;
   auth.relays = READ;
@@ -67,6 +77,35 @@ describe('follows / refusing to publish on a base it does not have', () => {
     expect(follows.status).toBe('unavailable');
     expect(follows.revision).toBe(before);
     expect(show).toHaveBeenCalledWith(expect.stringContaining('取得できませんでした'), 'error');
+  });
+
+  it('publishes nothing when no relay answered, even holding a copy of its own', async () => {
+    // The copy is what this app published; it says nothing about a follow made
+    // from another client since. Treating it as a base on a dead network would
+    // unfollow whoever that was.
+    answers(list([['p', BOB]]));
+    await follows.follow(ALICE);
+    expect(signAndPublish).toHaveBeenCalledTimes(1);
+
+    fetchContacts.mockResolvedValue({ event: null, answered: [], failed: [] });
+    await follows.follow(ME.replace('a', 'f'));
+
+    expect(signAndPublish).toHaveBeenCalledTimes(1);
+    expect(follows.status).toBe('unavailable');
+  });
+
+  it('ignores a stored copy that is not a whole contact list', async () => {
+    // `NaN` from a missing `created_at` compares false against everything, so
+    // it would slip past the diff check and be signed.
+    stored.set(`combine:contacts:${ME}`, JSON.stringify({ kind: 3, pubkey: ME, tags: [] }));
+    answers(list([['p', BOB]]));
+    await follows.follow(ALICE);
+
+    expect(Number.isFinite(published(0).created_at)).toBe(true);
+    expect(published(0).tags).toEqual([
+      ['p', BOB],
+      ['p', ALICE],
+    ]);
   });
 
   it('publishes nothing when only one relay said the list is missing', async () => {
@@ -90,6 +129,19 @@ describe('follows / refusing to publish on a base it does not have', () => {
     expect(signAndPublish).toHaveBeenCalledTimes(1);
     expect(published(0)).toMatchObject({ kind: 3, tags: [['p', ALICE]] });
     expect(follows.needsBootstrap).toBeNull();
+  });
+
+  it('still offers to start a list for somebody who runs a single relay', async () => {
+    // There is no second opinion to be had, and refusing forever would leave
+    // them unable to follow anyone. The confirmation is what guards this.
+    auth.relays = ['wss://only.example'];
+    auth.getWriteRelays.mockResolvedValue(['wss://only.example']);
+    answers(null, 1);
+    await follows.follow(ALICE);
+
+    expect(follows.needsBootstrap).toBe(ALICE);
+    expect(signAndPublish).not.toHaveBeenCalled();
+    auth.getWriteRelays.mockResolvedValue(WRITE);
   });
 
   it('drops the offer when the user declines', () => {

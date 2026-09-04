@@ -15,6 +15,7 @@
  */
 import { auth } from './auth.svelte';
 import {
+  asContactList,
   buildContacts,
   type ContactChange,
   type ContactList,
@@ -32,18 +33,32 @@ const STORAGE_PREFIX = 'combine:contacts:';
 
 /**
  * Relays that have to agree there is no contact list before combine offers to
- * write a new one. One is not enough: a relay requiring NIP-42 AUTH answers
- * EOSE with nothing, and a user whose one reachable relay does that would be
- * told they have no follows when they have hundreds.
+ * write a new one — or every relay asked, when there are fewer than this.
+ *
+ * One voice is weak evidence: a relay requiring NIP-42 AUTH answers EOSE with
+ * nothing, and a user whose only reachable relay does that would be told they
+ * have no follows when they have hundreds. Asking two makes that unlikely.
+ *
+ * Someone configured with a single relay cannot clear that bar, and combine
+ * asks them anyway rather than refusing to ever start a list: there is no
+ * second opinion to be had, and the prompt is a warning the user has to accept,
+ * not a silent write. What this quorum buys is not asking when the answer can
+ * still be checked.
  */
 const BOOTSTRAP_QUORUM = 2;
 
+/**
+ * The stored copy, held to the same standard as a relay's answer.
+ *
+ * It feeds the same publish path, and browser storage is no more trustworthy
+ * than a socket: a half-written or hand-edited entry missing `created_at` would
+ * make `nextCreatedAt` produce `NaN`, and every comparison against `NaN` is
+ * false — so it would slip past `checkContactsDiff` and be signed.
+ */
 function readStored(pubkey: string): ContactList | null {
   try {
     const raw = sessionStorage.getItem(STORAGE_PREFIX + pubkey);
-    if (!raw) return null;
-    const stored = JSON.parse(raw) as ContactList;
-    return stored.kind === 3 && stored.pubkey === pubkey ? stored : null;
+    return raw ? asContactList(JSON.parse(raw), pubkey) : null;
   } catch {
     return null;
   }
@@ -125,16 +140,20 @@ class FollowsStore {
       // An account switch (or a logout) while this was in flight makes the
       // answer somebody else's.
       if (auth.pubkey !== pubkey) return;
-      if (result.base) {
+      if (result.answered === 0) {
+        // Nothing was heard, so nothing is known — including whether the copy
+        // kept from our own last publish is still current.
+        this.status = 'unavailable';
+      } else if (result.base) {
         this.#adopt(result.base);
         this.status = 'ready';
-      } else if (result.trustworthy) {
-        // Nobody has one, and enough relays said so to believe it.
+      } else {
+        // Nobody has one, and at least one relay said so rather than went
+        // quiet. Enough to render a follow button; starting a list from nothing
+        // needs the higher bar in `#change`.
         this.#base = null;
         this.set = new Set();
         this.status = 'ready';
-      } else {
-        this.status = 'unavailable';
       }
     })().finally(() => {
       this.#loading = null;
@@ -199,14 +218,20 @@ class FollowsStore {
   }
 
   /**
-   * The list to build the next one on.
+   * The list to build the next one on, and how much the relays actually said.
    *
-   * `trustworthy` says whether a `null` base means anything: it is true only
-   * when enough relays reached EOSE to believe nobody holds a list, and false
-   * when they simply did not answer. Publishing on an untrustworthy `null`
-   * would replace an existing list with a list of one.
+   * Two different questions ride on `answered`, and they need different bars:
+   *
+   *  - *May we publish at all?* Only if at least one relay answered. With none,
+   *    combine has no idea what the list currently holds — and the copy it kept
+   *    from its own last publish is no substitute, because a follow added from
+   *    another client since would not be in it.
+   *  - *May we start a list from nothing?* Only if {@link BOOTSTRAP_QUORUM}
+   *    relays answered, which is a far higher bar for a far worse mistake.
    */
-  async #fetchBase(pubkey: string): Promise<{ base: ContactList | null; trustworthy: boolean }> {
+  async #fetchBase(
+    pubkey: string
+  ): Promise<{ base: ContactList | null; answered: number; asked: number }> {
     const relays = await this.#relays();
     const result = await fetchContacts(pubkey, relays);
 
@@ -219,10 +244,7 @@ class FollowsStore {
         ? stored
         : result.event;
 
-    return {
-      base,
-      trustworthy: result.answered.length >= Math.min(BOOTSTRAP_QUORUM, relays.length),
-    };
+    return { base, answered: result.answered.length, asked: relays.length };
   }
 
   async #change(change: ContactChange, allowBootstrap = false): Promise<void> {
@@ -241,11 +263,23 @@ class FollowsStore {
     this.#adoptAccount(pubkey);
     this.pending = target;
     try {
-      const { base, trustworthy } = await this.#fetchBase(pubkey);
+      const { base, answered, asked } = await this.#fetchBase(pubkey);
       if (auth.pubkey !== pubkey) return;
 
+      // Before anything else, and whether or not a base was found: a stored
+      // copy makes a silent network look like a healthy one, and building on it
+      // would drop every follow made elsewhere since it was written.
+      if (answered === 0) {
+        this.status = 'unavailable';
+        toast.show(
+          'フォローリストを取得できませんでした。通信状況を確認してもう一度お試しください。',
+          'error'
+        );
+        return;
+      }
+
       if (!base && !allowBootstrap) {
-        if (!trustworthy) {
+        if (answered < Math.min(BOOTSTRAP_QUORUM, asked)) {
           this.status = 'unavailable';
           toast.show(
             'フォローリストを取得できませんでした。通信状況を確認してもう一度お試しください。',
