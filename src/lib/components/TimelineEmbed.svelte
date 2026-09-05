@@ -33,6 +33,7 @@ let {
   follows = null,
   kinds = '1',
   limit = 50,
+  reloadKey = 0,
 }: {
   /** NIP-01 filters. Only the first 10 are read. */
   filters?: NostrFilter[] | null;
@@ -41,6 +42,11 @@ let {
   /** Comma-separated. */
   kinds?: string;
   limit?: number;
+  /**
+   * Change this to rebuild the follow timeline. Only that element reads it: it
+   * resolves kind 3 once when built, so a later follow is invisible until then.
+   */
+  reloadKey?: number;
 } = $props();
 
 // From `cacheRelay`, not `auth`: a changed `relays` restarts the widget, and
@@ -57,21 +63,29 @@ const freshness = String(NOSTR_CACHE_PROFILE_FRESHNESS);
 
 <WidgetGate>
   {#if follows}
-    <nostr-follow-timeline
-      use:handlePostAction
-      pubkey={follows}
-      kinds={kindsAttr}
-      limit={limitAttr}
-      {relays}
-      actions={POST_ACTIONS_ATTR}
-      author-action={AUTHOR_ACTION_ID}
-      note-action={NOTE_ACTION_ID}
-      material-icons={MATERIAL_ICONS}
-      ogp-proxy={OGP_PROXY}
-      image-proxy={IMAGE_PROXY}
-      db-name={NOSTR_CACHE_DB_NAME}
-      profile-freshness={freshness}
-    ></nostr-follow-timeline>
+    <!--
+      Rebuilding drops the posts on screen and their subscription, which is why
+      nothing else here does it. Affordable because the kind 3 it re-reads went
+      through the in-page relay and is already in IndexedDB, and because it only
+      happens right after the user changed who they follow.
+    -->
+    {#key reloadKey}
+      <nostr-follow-timeline
+        use:handlePostAction
+        pubkey={follows}
+        kinds={kindsAttr}
+        limit={limitAttr}
+        {relays}
+        actions={POST_ACTIONS_ATTR}
+        author-action={AUTHOR_ACTION_ID}
+        note-action={NOTE_ACTION_ID}
+        material-icons={MATERIAL_ICONS}
+        ogp-proxy={OGP_PROXY}
+        image-proxy={IMAGE_PROXY}
+        db-name={NOSTR_CACHE_DB_NAME}
+        profile-freshness={freshness}
+      ></nostr-follow-timeline>
+    {/key}
   {:else}
     <nostr-timeline
       use:handlePostAction
