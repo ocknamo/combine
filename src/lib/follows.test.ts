@@ -255,6 +255,74 @@ describe('follows / publishing', () => {
   });
 });
 
+describe('follows / showing the change before the relays confirm it', () => {
+  /** Holds the publish open so the in-flight display can be looked at. */
+  function holdPublish(): (ok: boolean) => void {
+    let release: (ok: boolean) => void = () => {};
+    signAndPublish.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        release = resolve;
+      })
+    );
+    return release;
+  }
+
+  it('follows on the press, not on the publish', async () => {
+    answers(list([['p', BOB]]));
+    const release = holdPublish();
+
+    const change = follows.follow(ALICE);
+    await vi.waitFor(() => expect(signAndPublish).toHaveBeenCalled());
+    expect(follows.isFollowing(ALICE)).toBe(true);
+
+    release(true);
+    await change;
+    expect(follows.isFollowing(ALICE)).toBe(true);
+  });
+
+  it('unfollows on the press too', async () => {
+    answers(list([['p', ALICE]]));
+    await follows.ensureLoaded();
+    const release = holdPublish();
+
+    const change = follows.unfollow(ALICE);
+    await vi.waitFor(() => expect(signAndPublish).toHaveBeenCalled());
+    expect(follows.isFollowing(ALICE)).toBe(false);
+
+    release(true);
+    await change;
+    expect(follows.isFollowing(ALICE)).toBe(false);
+  });
+
+  it('puts it back when no relay took the event', async () => {
+    answers(list([['p', BOB]]));
+    signAndPublish.mockResolvedValue(false);
+    await follows.follow(ALICE);
+
+    expect(follows.isFollowing(ALICE)).toBe(false);
+    expect(show).toHaveBeenCalledWith('フォローに失敗しました', 'error');
+  });
+
+  it('puts it back when signing throws', async () => {
+    answers(list([['p', ALICE]]));
+    await follows.ensureLoaded();
+    signAndPublish.mockRejectedValue(new Error('rejected at nosskey.app'));
+    await follows.unfollow(ALICE);
+
+    expect(follows.isFollowing(ALICE)).toBe(true);
+  });
+
+  it('puts it back while it asks about starting a list from nothing', async () => {
+    // Nothing was published and nothing will be until the user answers, so a
+    // button reading "following" above the warning would be a lie.
+    answers(null, 2);
+    await follows.follow(ALICE);
+
+    expect(follows.needsBootstrap).toBe(ALICE);
+    expect(follows.isFollowing(ALICE)).toBe(false);
+  });
+});
+
 describe('follows / what it refuses to do at all', () => {
   it('runs one change at a time', async () => {
     // Two lists built on one base would have the second undo the first.

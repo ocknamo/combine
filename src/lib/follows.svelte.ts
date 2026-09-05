@@ -8,6 +8,8 @@
  * The rule that shapes it: **display and publish need different freshness.** A
  * stale button label looks wrong for a moment; a stale base unfollows everyone
  * it is missing. So the cache answers `isFollowing` and every change re-fetches.
+ * The same asymmetry lets the label move before the publish lands: a wrong one
+ * costs a correction, and the round trip below is seconds long.
  */
 import { auth } from './auth.svelte';
 import {
@@ -67,6 +69,12 @@ class FollowsStore {
   /** The person a publish is in flight for, or `null`. */
   pending = $state<string | null>(null);
   /**
+   * What {@link pending}'s change will make true, shown before the relays have
+   * agreed. Cleared when the change settles — by then `set` either carries it
+   * or the toast has said why it does not.
+   */
+  optimistic = $state<{ hex: string; following: boolean } | null>(null);
+  /**
    * The person to follow once the user agrees to start a contact list from
    * scratch. Set only when {@link BOOTSTRAP_QUORUM} relays said there is none.
    */
@@ -91,6 +99,7 @@ class FollowsStore {
   #loading: Promise<void> | null = null;
 
   isFollowing(hex: string): boolean {
+    if (this.optimistic?.hex === hex) return this.optimistic.following;
     return this.set.has(hex);
   }
 
@@ -164,6 +173,7 @@ class FollowsStore {
     this.status = 'idle';
     this.set = new Set();
     this.pending = null;
+    this.optimistic = null;
     this.needsBootstrap = null;
     this.#base = null;
     this.#published = null;
@@ -231,6 +241,7 @@ class FollowsStore {
 
     this.#adoptAccount(pubkey);
     this.pending = target;
+    this.optimistic = { hex: target, following: 'add' in change };
     try {
       const { base, answered, asked } = await this.#fetchBase(pubkey);
       if (auth.pubkey !== pubkey) return;
@@ -313,6 +324,7 @@ class FollowsStore {
       );
     } finally {
       this.pending = null;
+      this.optimistic = null;
     }
   }
 }
