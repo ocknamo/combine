@@ -2,7 +2,8 @@
 /**
  * The follow button on a person's page. Deliberately dumb: every state exists
  * to stop a contact list being overwritten with less than it had, so which one
- * is safe belongs to `follows` and this only renders it.
+ * is safe belongs to `follows` and this only renders it — the pressed state
+ * included, which the store shows before the publish returns.
  */
 import { auth } from '../auth.svelte';
 import { follows } from '../follows.svelte';
@@ -17,6 +18,8 @@ $effect(() => {
   if (shown) void follows.ensureLoaded();
 });
 
+// Already the state the in-flight change is publishing: the label moves on the
+// press, and only an error moves it back.
 const following = $derived(follows.isFollowing(hex));
 const busy = $derived(follows.pending === hex);
 // Two changes at once would have the second undo the first, including one
@@ -28,7 +31,11 @@ const asking = $derived(follows.needsBootstrap === hex);
 {#if shown}
   <div class="follow">
     {#if follows.status === 'loading'}
-      <button disabled>読み込み中…</button>
+      <button class="loading" disabled aria-busy="true" aria-label="フォロー情報を読み込み中">
+        <!-- The label it is about to become, kept for its width alone. -->
+        <span class="placeholder" aria-hidden="true">フォローする</span>
+        <span class="spinner" aria-hidden="true"></span>
+      </button>
     {:else if follows.status === 'unavailable'}
       <!-- Not a disabled follow button: a pressable one here would publish over
            follows we never saw. -->
@@ -37,21 +44,21 @@ const asking = $derived(follows.needsBootstrap === hex);
       <button
         class="following"
         disabled={busy || blocked}
+        aria-busy={busy}
         aria-label="フォロー解除"
         onclick={() => void follows.unfollow(hex)}
       >
-        <span class="label" class:hidden={busy}>フォロー解除</span>
-        {#if busy}<span class="spinner" aria-hidden="true"></span>{/if}
+        フォロー解除
       </button>
     {:else}
       <button
         class="primary"
         disabled={busy || blocked}
+        aria-busy={busy}
         aria-label="フォローする"
         onclick={() => void follows.follow(hex)}
       >
-        <span class="label" class:hidden={busy}>フォローする</span>
-        {#if busy}<span class="spinner" aria-hidden="true"></span>{/if}
+        フォローする
       </button>
     {/if}
 
@@ -83,13 +90,20 @@ const asking = $derived(follows.needsBootstrap === hex);
     color: var(--danger);
   }
 
-  /* The label stays in the layout while it is hidden: the spinner is far
-     narrower, and a button that shrinks under the cursor looks like a misclick. */
-  .follow button {
+  /* Neither of these is dimmed like an ordinary disabled button: a spinner at
+     half opacity reads as broken, and the label a press just flipped is meant
+     to read as already done. */
+  .follow button[aria-busy='true'] {
+    opacity: 1;
+  }
+
+  /* The spinner sits over the placeholder rather than replacing it: it is far
+     narrower, and the row would jump when the load resolves. */
+  .loading {
     position: relative;
   }
 
-  .label.hidden {
+  .placeholder {
     visibility: hidden;
   }
 
