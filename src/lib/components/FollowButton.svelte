@@ -40,7 +40,8 @@ const asking = $derived(follows.needsBootstrap === hex);
         aria-label="フォロー解除"
         onclick={() => void follows.unfollow(hex)}
       >
-        {#if busy}<span class="spinner" aria-hidden="true"></span>{:else}フォロー解除{/if}
+        <span class="label" class:hidden={busy}>フォロー解除</span>
+        {#if busy}<span class="spinner" aria-hidden="true"></span>{/if}
       </button>
     {:else}
       <button
@@ -49,7 +50,8 @@ const asking = $derived(follows.needsBootstrap === hex);
         aria-label="フォローする"
         onclick={() => void follows.follow(hex)}
       >
-        {#if busy}<span class="spinner" aria-hidden="true"></span>{:else}フォローする{/if}
+        <span class="label" class:hidden={busy}>フォローする</span>
+        {#if busy}<span class="spinner" aria-hidden="true"></span>{/if}
       </button>
     {/if}
 
@@ -81,13 +83,22 @@ const asking = $derived(follows.needsBootstrap === hex);
     color: var(--danger);
   }
 
-  /* Replaces the label while a change is in flight, so the button keeps its
-     line height and does not resize mid-press. */
+  /* The label stays in the layout while it is hidden: the spinner is far
+     narrower, and a button that shrinks under the cursor looks like a misclick. */
+  .follow button {
+    position: relative;
+  }
+
+  .label.hidden {
+    visibility: hidden;
+  }
+
   .spinner {
-    display: inline-block;
+    position: absolute;
+    inset: 0;
+    margin: auto;
     width: 1em;
     height: 1em;
-    vertical-align: -0.15em;
     border: 2px solid currentColor;
     border-top-color: transparent;
     border-radius: 50%;
