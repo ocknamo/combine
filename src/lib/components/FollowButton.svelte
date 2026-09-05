@@ -34,12 +34,22 @@ const asking = $derived(follows.needsBootstrap === hex);
            follows we never saw. -->
       <button onclick={() => void follows.refresh()}>フォロー情報を再取得</button>
     {:else if following}
-      <button class="following" disabled={busy || blocked} onclick={() => void follows.unfollow(hex)}>
-        {busy ? '解除中…' : 'フォロー中'}
+      <button
+        class="following"
+        disabled={busy || blocked}
+        aria-label="フォロー解除"
+        onclick={() => void follows.unfollow(hex)}
+      >
+        {#if busy}<span class="spinner" aria-hidden="true"></span>{:else}フォロー解除{/if}
       </button>
     {:else}
-      <button class="primary" disabled={busy || blocked} onclick={() => void follows.follow(hex)}>
-        {busy ? '送信中…' : 'フォロー'}
+      <button
+        class="primary"
+        disabled={busy || blocked}
+        aria-label="フォローする"
+        onclick={() => void follows.follow(hex)}
+      >
+        {#if busy}<span class="spinner" aria-hidden="true"></span>{:else}フォローする{/if}
       </button>
     {/if}
 
@@ -65,10 +75,35 @@ const asking = $derived(follows.needsBootstrap === hex);
     display: contents;
   }
 
-  /* Hover is the only affordance one button has for "press to undo". */
+  /* Undoing a follow is the destructive direction. */
   .following:hover:not(:disabled) {
     border-color: var(--danger);
     color: var(--danger);
+  }
+
+  /* Replaces the label while a change is in flight, so the button keeps its
+     line height and does not resize mid-press. */
+  .spinner {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.15em;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spinner {
+      animation-duration: 2.4s;
+    }
   }
 
   .confirm {
