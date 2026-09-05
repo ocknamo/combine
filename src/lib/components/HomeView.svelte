@@ -96,9 +96,8 @@ function onSwipe(direction: SwipeDirection): void {
   -->
   {#if openedFollows && auth.pubkey}
     <div class="feed" class:hidden={active !== 'follows'}>
-      <!-- `reloadKey` rebuilds the element after a follow or unfollow: it
-           resolves kind 3 only when it is built, so otherwise the feed would go
-           on showing the follows the user had when they opened the tab. -->
+      <!-- Rebuilt after a follow: the element resolves kind 3 only when built,
+           so the feed would otherwise keep the follows the tab opened with. -->
       <TimelineEmbed follows={auth.pubkey} kinds="1,6" limit={50} reloadKey={follows.revision} />
     </div>
   {/if}

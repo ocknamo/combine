@@ -1,17 +1,13 @@
 /**
  * Reading a contact list off the relays — combine's first read path of its own.
  *
- * Everything else combine displays is fetched by an embedded widget, through
- * the in-page cache relay. A contact list about to be *replaced* cannot come
- * from there: nostr-cache decides for itself how long it serves a stored kind 3
- * before re-asking upstream, and combine has no way to see or set that for
- * kind 3. Serving one that is an hour old would silently unfollow everyone
- * added elsewhere since.
- *
- * So this dials the upstream relays directly. It can, because the cache relay
- * works by intercepting exactly one URL in `globalThis.WebSocket` — every other
- * `wss://` still goes where it says. Writing still goes through the cache
- * (`publishOwn.ts`); only the base of a write is fetched around it.
+ * Everything else combine shows comes through the in-page cache relay. A list
+ * about to be *replaced* cannot: nostr-cache decides for itself how long it
+ * serves a stored kind 3, and one an hour old would unfollow everyone added
+ * elsewhere since. So this dials the upstream relays directly, which works
+ * because the cache intercepts exactly one URL in `globalThis.WebSocket`.
+ * Writes still go through it (`publishOwn.ts`) — only their base is fetched
+ * around it.
  */
 import { asContactList, type ContactList, pickLatest } from './contacts';
 
@@ -35,11 +31,10 @@ export interface FetchContactsResult {
   /** The newest list any relay held, or `null` when none held one. */
   event: ContactList | null;
   /**
-   * Relays that reached EOSE — the ones whose silence *means* something. A
-   * relay in here has said it holds no contact list for this person; a relay
-   * that timed out has said nothing at all. Telling those two apart is what
-   * stands between "you have no follows yet" and wiping the follows of someone
-   * whose relays were briefly unreachable.
+   * Relays that reached EOSE — the ones whose silence *means* something. One in
+   * here has said it holds no list; one that timed out has said nothing at all.
+   * Telling those apart is what separates "no follows yet" from wiping the
+   * follows of someone whose relays were briefly unreachable.
    */
   answered: string[];
   /** Relays that failed, timed out, or closed before answering. */
@@ -48,13 +43,7 @@ export interface FetchContactsResult {
 
 const FETCH_TIMEOUT_MS = 6000;
 
-/**
- * Events one relay may send for one subscription before we stop reading.
- *
- * A relay holds one replaceable event per kind and author, so a well-behaved
- * one sends exactly one. The cap is only so a relay that streams forever cannot
- * hold the follow button hostage.
- */
+/** Only so a relay that streams forever cannot hold the follow button hostage. */
 const MAX_EVENTS_PER_RELAY = 10;
 
 /** This person's contact list out of one incoming frame, or `null`. */
@@ -131,9 +120,8 @@ function queryRelay(
 
     socket.addEventListener('open', () => {
       try {
-        // No `limit: 1`: a relay that ignores the replaceable rule and keeps an
-        // older list could answer with that one. Take everything it offers and
-        // let `pickLatest` decide.
+        // No `limit: 1`: a relay that keeps an older list could answer with
+        // that one. Take everything and let `pickLatest` decide.
         socket.send(JSON.stringify(['REQ', subId, { kinds: [3], authors: [pubkey] }]));
       } catch (err) {
         finish(false, err instanceof Error ? err.message : String(err));
@@ -157,10 +145,9 @@ function queryRelay(
 /**
  * Ask every relay for one person's contact list.
  *
- * Never rejects, for the same reason `publishEvent` does not: a relay that is
- * down is an outcome the caller has to weigh, not an exception. Weighing it is
- * the caller's job precisely because "no list anywhere" and "nobody answered"
- * look identical in `event` and are opposite in consequence.
+ * Never rejects, like `publishEvent`: a relay that is down is an outcome for
+ * the caller to weigh — "no list anywhere" and "nobody answered" look the same
+ * in `event` and are opposite in consequence.
  */
 export async function fetchContacts(
   pubkey: string,

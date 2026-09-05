@@ -174,8 +174,8 @@ describe('buildContacts / unfollow', () => {
   });
 
   it('removes every duplicate of the target', () => {
-    // Leaving one behind would keep the count unchanged, and `checkContactsDiff`
-    // would then refuse the publish for good.
+    // Leaving one behind keeps the count unchanged, which `checkContactsDiff`
+    // would then refuse for good.
     const base = list([
       ['p', ALICE],
       ['p', BOB],

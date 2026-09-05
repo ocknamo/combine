@@ -1,17 +1,13 @@
 /**
  * Who the signed-in user follows, and the one path that changes it.
  *
- * A contact list (kind 3) is replaceable: publishing one replaces the whole
- * list, so a follow is not "add a person" but "rewrite everything, plus one".
- * Every guard against rewriting it wrongly funnels through {@link FollowsStore}
- * — the arithmetic is `contacts.ts` and the read is `contactsFetch.ts`; what is
- * decided here is what to do with a fetch that came back thin.
+ * A follow is not "add a person" but "rewrite the whole list, plus one", so
+ * what this store decides is what to do with a fetch that came back thin (the
+ * arithmetic is `contacts.ts`, the read `contactsFetch.ts`).
  *
- * The rule that shapes the whole store: **what is displayed and what is
- * published have different freshness requirements.** A button label may be
- * minutes old and merely look wrong for a moment. The base of a write may not
- * be old at all — anything it is missing gets unfollowed. So the cached list
- * answers `isFollowing`, and every change re-fetches from the relays first.
+ * The rule that shapes it: **display and publish need different freshness.** A
+ * stale button label looks wrong for a moment; a stale base unfollows everyone
+ * it is missing. So the cache answers `isFollowing` and every change re-fetches.
  */
 import { auth } from './auth.svelte';
 import {
@@ -32,28 +28,20 @@ type Status = 'idle' | 'loading' | 'ready' | 'unavailable';
 const STORAGE_PREFIX = 'combine:contacts:';
 
 /**
- * Relays that have to agree there is no contact list before combine offers to
- * write a new one — or every relay asked, when there are fewer than this.
+ * Relays that must agree there is no contact list before offering to write a
+ * new one — or every relay asked, when there are fewer than this.
  *
- * One voice is weak evidence: a relay requiring NIP-42 AUTH answers EOSE with
- * nothing, and a user whose only reachable relay does that would be told they
- * have no follows when they have hundreds. Asking two makes that unlikely.
- *
- * Someone configured with a single relay cannot clear that bar, and combine
- * asks them anyway rather than refusing to ever start a list: there is no
- * second opinion to be had, and the prompt is a warning the user has to accept,
- * not a silent write. What this quorum buys is not asking when the answer can
- * still be checked.
+ * One voice is weak evidence: a NIP-42 relay answers EOSE with nothing, and
+ * someone with hundreds of follows would be told they have none. Someone on a
+ * single relay is asked anyway rather than locked out forever — there is no
+ * second opinion to be had, and the prompt is a warning they must accept.
  */
 const BOOTSTRAP_QUORUM = 2;
 
 /**
- * The stored copy, held to the same standard as a relay's answer.
- *
- * It feeds the same publish path, and browser storage is no more trustworthy
- * than a socket: a half-written or hand-edited entry missing `created_at` would
- * make `nextCreatedAt` produce `NaN`, and every comparison against `NaN` is
- * false — so it would slip past `checkContactsDiff` and be signed.
+ * Held to the same standard as a relay's answer — it feeds the same publish
+ * path. An entry missing `created_at` makes `nextCreatedAt` produce `NaN`, and
+ * every comparison against `NaN` is false, so it would be signed unchecked.
  */
 function readStored(pubkey: string): ContactList | null {
   try {
@@ -74,12 +62,7 @@ function writeStored(list: ContactList): void {
 
 class FollowsStore {
   status = $state<Status>('idle');
-  /**
-   * The people followed, for rendering.
-   *
-   * Replaced rather than mutated on every change: `$state` does not proxy a
-   * `Set`, so `add()` would update nothing on screen.
-   */
+  /** Replaced, never mutated: `$state` does not proxy a `Set`. */
   set = $state<ReadonlySet<string>>(new Set());
   /** The person a publish is in flight for, or `null`. */
   pending = $state<string | null>(null);
@@ -90,21 +73,17 @@ class FollowsStore {
   needsBootstrap = $state<string | null>(null);
   /**
    * Bumped by every accepted publish, for views that must re-read the list.
-   * Never reset — it is a ticker a `{#key}` compares against its last value, so
-   * winding it back on a logout would rebuild the very widgets that just went
-   * away (see `TimelineEmbed`).
+   * Never reset: `{#key}` compares it against its last value, so winding it
+   * back would rebuild the widgets that just went away (`TimelineEmbed`).
    */
   revision = $state(0);
 
   /** The list as last known, whether fetched or published. */
   #base: ContactList | null = null;
   /**
-   * The last list this app published.
-   *
-   * Kept because relays take a moment to serve back what they have just been
-   * given: a second follow within that window would otherwise be built on a
-   * base that predates the first and undo it. Survives a reload through
-   * sessionStorage, which is where that window is widest.
+   * The last list this app published. Relays take a moment to serve back what
+   * they were just given, and a second follow inside that window would build on
+   * a base predating the first and undo it.
    */
   #published: ContactList | null = null;
   /** Whose list the state above describes — `auth.pubkey` changes silently. */
@@ -141,16 +120,15 @@ class FollowsStore {
       // answer somebody else's.
       if (auth.pubkey !== pubkey) return;
       if (result.answered === 0) {
-        // Nothing was heard, so nothing is known — including whether the copy
-        // kept from our own last publish is still current.
+        // Nothing heard, so nothing known — including whether our own copy is
+        // still current.
         this.status = 'unavailable';
       } else if (result.base) {
         this.#adopt(result.base);
         this.status = 'ready';
       } else {
-        // Nobody has one, and at least one relay said so rather than went
-        // quiet. Enough to render a follow button; starting a list from nothing
-        // needs the higher bar in `#change`.
+        // Nobody has one and a relay said so rather than went quiet: enough to
+        // render a button. Writing a new list needs the higher bar in `#change`.
         this.#base = null;
         this.set = new Set();
         this.status = 'ready';
@@ -206,12 +184,9 @@ class FollowsStore {
   }
 
   /**
-   * The relays to ask for a contact list.
-   *
-   * Read *and* write: a client that publishes a contact list sends it to the
-   * write relays, and someone whose two sets differ would have combine reading
-   * from relays that never received it. Asking both costs a few more sockets on
-   * a press and removes a whole class of "my follows disappeared".
+   * Read *and* write: a client publishes a contact list to the write relays, so
+   * someone whose two sets differ would have combine reading from relays that
+   * never received it.
    */
   async #relays(): Promise<string[]> {
     return [...new Set([...auth.relays, ...(await auth.getWriteRelays())])];
@@ -220,14 +195,10 @@ class FollowsStore {
   /**
    * The list to build the next one on, and how much the relays actually said.
    *
-   * Two different questions ride on `answered`, and they need different bars:
-   *
-   *  - *May we publish at all?* Only if at least one relay answered. With none,
-   *    combine has no idea what the list currently holds — and the copy it kept
-   *    from its own last publish is no substitute, because a follow added from
-   *    another client since would not be in it.
-   *  - *May we start a list from nothing?* Only if {@link BOOTSTRAP_QUORUM}
-   *    relays answered, which is a far higher bar for a far worse mistake.
+   * Two questions ride on `answered` at different bars: publishing at all needs
+   * one relay to have answered (our own copy is no substitute — a follow made
+   * elsewhere since would not be in it); starting a list from nothing needs
+   * {@link BOOTSTRAP_QUORUM}, a far higher bar for a far worse mistake.
    */
   async #fetchBase(
     pubkey: string
@@ -236,9 +207,8 @@ class FollowsStore {
     const result = await fetchContacts(pubkey, relays);
 
     const stored = this.#published;
-    // `>=` so a tie goes to what this app published: at the same second the
-    // relay's copy is either our own coming back, or the one a relay kept when
-    // it had to choose between two events of the same age.
+    // `>=` so a tie goes to our own: at the same second the relay's copy is
+    // either ours coming back, or the one it kept between two events of one age.
     const base =
       stored && (!result.event || stored.created_at >= result.event.created_at)
         ? stored
@@ -254,10 +224,9 @@ class FollowsStore {
       return;
     }
     const target = changeTarget(change);
-    // Following oneself is not a thing combine offers; a stray call is a bug.
     if (target === pubkey) return;
-    // One in flight at a time. Two presses would build two lists on the same
-    // base, and whichever landed second would undo the first.
+    // Two presses would build two lists on one base, and the second would undo
+    // the first.
     if (this.pending) return;
 
     this.#adoptAccount(pubkey);
@@ -266,9 +235,8 @@ class FollowsStore {
       const { base, answered, asked } = await this.#fetchBase(pubkey);
       if (auth.pubkey !== pubkey) return;
 
-      // Before anything else, and whether or not a base was found: a stored
-      // copy makes a silent network look like a healthy one, and building on it
-      // would drop every follow made elsewhere since it was written.
+      // Whether or not a base was found: our stored copy makes a silent network
+      // look healthy, and building on it drops every follow made elsewhere.
       if (answered === 0) {
         this.status = 'unavailable';
         toast.show(
@@ -287,8 +255,8 @@ class FollowsStore {
           );
           return;
         }
-        // Believable, but starting a list from nothing is exactly the shape of
-        // the accident this store exists to prevent. Ask first.
+        // Believable, but this is the shape of the accident the store exists to
+        // prevent. Ask first.
         this.needsBootstrap = target;
         return;
       }

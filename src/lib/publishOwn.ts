@@ -23,14 +23,11 @@ export interface UnsignedEvent {
 
 export interface PublishOwnOptions {
   /**
-   * Also send straight to the user's write relays, on top of the cache relay.
-   *
-   * For an event combine cannot afford to have land nowhere. The cache relay
-   * forwards to the upstreams it was started with, which are the user's *read*
-   * relays (`App.svelte`), so someone whose read and write sets differ would
-   * otherwise never see this event reach the relays they publish from.
-   * Duplicates cost nothing: it is one event id, and a relay that already has
-   * it answers `OK` again.
+   * Also send straight to the user's write relays, for an event that cannot
+   * afford to land nowhere. The cache relay forwards to the upstreams it was
+   * started with — the user's *read* relays (`App.svelte`) — so someone whose
+   * two sets differ would never see it reach the relays they publish from.
+   * Duplicates cost nothing: same event id, another `OK`.
    */
   writeRelays?: boolean;
 }
@@ -74,10 +71,8 @@ export async function signAndPublish(
   const signed = await auth.signEvent(event);
   // Optional in the signer's type because it takes unsigned events too.
   if (!signed.id) throw new Error('signed event has no id');
-  // The account can be switched at nosskey.app between building an event and
-  // signing it (`reconcileSession` notices only on the next visibility change),
-  // and the signer uses whichever it now holds. Publishing that would put one
-  // account's content out under another's name — for a contact list, it would
+  // The account can be switched at nosskey.app between building and signing,
+  // and the signer uses whichever it now holds. For a contact list that would
   // replace the follows of an account that never asked for it.
   if (signed.pubkey !== event.pubkey) {
     throw new Error('signed by a different account than the event was built for');

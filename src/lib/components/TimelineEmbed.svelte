@@ -43,10 +43,8 @@ let {
   kinds?: string;
   limit?: number;
   /**
-   * Change this to rebuild the follow timeline from scratch. Only that element
-   * reads it — it resolves kind 3 once when it is built and never again, so a
-   * follow published afterwards is invisible until it is rebuilt. See the
-   * template for what a rebuild costs.
+   * Change this to rebuild the follow timeline. Only that element reads it: it
+   * resolves kind 3 once when built, so a later follow is invisible until then.
    */
   reloadKey?: number;
 } = $props();
@@ -66,12 +64,10 @@ const freshness = String(NOSTR_CACHE_PROFILE_FRESHNESS);
 <WidgetGate>
   {#if follows}
     <!--
-      Keyed on `reloadKey` so following someone shows up in the feed. Rebuilding
-      drops the posts on screen and the subscription behind them, which is why
-      nothing else in the app does it — but the kind 3 it re-reads was published
-      through the in-page relay and is already in IndexedDB, so the rebuild is
-      served from the cache rather than a round trip, and it happens only right
-      after the user changed who they follow.
+      Rebuilding drops the posts on screen and their subscription, which is why
+      nothing else here does it. Affordable because the kind 3 it re-reads went
+      through the in-page relay and is already in IndexedDB, and because it only
+      happens right after the user changed who they follow.
     -->
     {#key reloadKey}
       <nostr-follow-timeline

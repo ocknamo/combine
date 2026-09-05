@@ -21,8 +21,8 @@ const fetchContacts = vi.fn(
 const signAndPublish = vi.fn(async (_event: UnsignedEvent, _options?: PublishOwnOptions) => true);
 const show = vi.fn();
 
-// There is no DOM in this suite, and the stored copy of the last published
-// list is half of how the store survives a relay that has not caught up yet.
+// No DOM in this suite, and the stored copy is half of how the store survives
+// a relay that has not caught up yet.
 const stored = new Map<string, string>();
 vi.stubGlobal('sessionStorage', {
   getItem: (key: string) => stored.get(key) ?? null,
@@ -80,9 +80,7 @@ describe('follows / refusing to publish on a base it does not have', () => {
   });
 
   it('publishes nothing when no relay answered, even holding a copy of its own', async () => {
-    // The copy is what this app published; it says nothing about a follow made
-    // from another client since. Treating it as a base on a dead network would
-    // unfollow whoever that was.
+    // The copy says nothing about a follow made from another client since.
     answers(list([['p', BOB]]));
     await follows.follow(ALICE);
     expect(signAndPublish).toHaveBeenCalledTimes(1);
@@ -132,8 +130,7 @@ describe('follows / refusing to publish on a base it does not have', () => {
   });
 
   it('still offers to start a list for somebody who runs a single relay', async () => {
-    // There is no second opinion to be had, and refusing forever would leave
-    // them unable to follow anyone. The confirmation is what guards this.
+    // No second opinion to be had; the confirmation is what guards this.
     auth.relays = ['wss://only.example'];
     auth.getWriteRelays.mockResolvedValue(['wss://only.example']);
     answers(null, 1);

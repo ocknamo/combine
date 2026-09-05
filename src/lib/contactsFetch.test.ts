@@ -167,8 +167,7 @@ describe('fetchContacts', () => {
   });
 
   it('answers nobody when every relay failed', async () => {
-    // The caller must be able to tell this apart from the case below: here the
-    // user may well have a contact list nobody managed to hand over.
+    // Apart from the case below: the user may well have a list nobody handed over.
     const { create, all } = sockets();
     const pending = fetchContacts(ME, relays, { createSocket: create });
     for (const socket of all.values()) socket.emit('error');
