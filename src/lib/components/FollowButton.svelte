@@ -31,7 +31,11 @@ const asking = $derived(follows.needsBootstrap === hex);
 {#if shown}
   <div class="follow">
     {#if follows.status === 'loading'}
-      <button disabled>読み込み中…</button>
+      <button class="loading" disabled aria-busy="true" aria-label="フォロー情報を読み込み中">
+        <!-- The label it is about to become, kept for its width alone. -->
+        <span class="placeholder" aria-hidden="true">フォローする</span>
+        <span class="spinner" aria-hidden="true"></span>
+      </button>
     {:else if follows.status === 'unavailable'}
       <!-- Not a disabled follow button: a pressable one here would publish over
            follows we never saw. -->
@@ -86,10 +90,45 @@ const asking = $derived(follows.needsBootstrap === hex);
     color: var(--danger);
   }
 
-  /* Disabled only to keep one change in flight at a time. Dimming it would
-     undo the point: the new label is meant to read as already done. */
+  /* Neither of these is dimmed like an ordinary disabled button: a spinner at
+     half opacity reads as broken, and the label a press just flipped is meant
+     to read as already done. */
   .follow button[aria-busy='true'] {
     opacity: 1;
+  }
+
+  /* The spinner sits over the placeholder rather than replacing it: it is far
+     narrower, and the row would jump when the load resolves. */
+  .loading {
+    position: relative;
+  }
+
+  .placeholder {
+    visibility: hidden;
+  }
+
+  .spinner {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1em;
+    height: 1em;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spinner {
+      animation-duration: 2.4s;
+    }
   }
 
   .confirm {
