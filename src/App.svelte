@@ -9,6 +9,7 @@ import NotificationsView from './lib/components/NotificationsView.svelte';
 import PostView from './lib/components/PostView.svelte';
 import ProfileView from './lib/components/ProfileView.svelte';
 import SearchView from './lib/components/SearchView.svelte';
+import SideMenu from './lib/components/SideMenu.svelte';
 import TabBar from './lib/components/TabBar.svelte';
 import { router } from './lib/router.svelte';
 import { readScroll, saveScroll, scrollKey } from './lib/scrollMemory';
@@ -82,43 +83,46 @@ $effect(() => {
 });
 </script>
 
-<div class="app">
-  <Header />
-  <main>
-    <!--
-      Home stays mounted and is only hidden. Tearing the timeline down and
-      building it again on every tab switch throws away the loaded events, the
-      scroll position and the widget's subscriptions, and the user sees it
-      reload — even though the cache relay answers from IndexedDB, that is a
-      spinner and a jump to the top for something they were just reading.
-    -->
-    <div class="view-holder" class:hidden={route.name !== 'home'}>
-      <HomeView />
-    </div>
+<div class="shell">
+  <SideMenu />
+  <div class="app">
+    <Header />
+    <main>
+      <!--
+        Home stays mounted and is only hidden. Tearing the timeline down and
+        building it again on every tab switch throws away the loaded events, the
+        scroll position and the widget's subscriptions, and the user sees it
+        reload — even though the cache relay answers from IndexedDB, that is a
+        spinner and a jump to the top for something they were just reading.
+      -->
+      <div class="view-holder" class:hidden={route.name !== 'home'}>
+        <HomeView />
+      </div>
 
-    {#if route.name === 'search'}
-      <SearchView />
-    {:else if route.name === 'notifications'}
-      <NotificationsView />
-    {:else if route.name === 'profile'}
-      <ProfileView user={auth.pubkey} tab />
-    {:else if route.name === 'user'}
-      <ProfileView user={route.param} />
-    {:else if route.name === 'post'}
-      <PostView id={route.param} />
-    {/if}
+      {#if route.name === 'search'}
+        <SearchView />
+      {:else if route.name === 'notifications'}
+        <NotificationsView />
+      {:else if route.name === 'profile'}
+        <ProfileView user={auth.pubkey} tab />
+      {:else if route.name === 'user'}
+        <ProfileView user={route.param} />
+      {:else if route.name === 'post'}
+        <PostView id={route.param} />
+      {/if}
 
-    <!--
-      Compose stays mounted so the editor survives a tab switch: the eHagaki
-      Web Component is expensive to build and holds the draft. It builds
-      nothing until `active` first turns true, so an app that is never used to
-      post never pays for it (see `ComposeView.svelte`).
-    -->
-    <div class="view-holder" class:hidden={route.name !== 'compose'}>
-      <ComposeView active={route.name === 'compose'} />
-    </div>
-  </main>
-  <TabBar />
+      <!--
+        Compose stays mounted so the editor survives a tab switch: the eHagaki
+        Web Component is expensive to build and holds the draft. It builds
+        nothing until `active` first turns true, so an app that is never used to
+        post never pays for it (see `ComposeView.svelte`).
+      -->
+      <div class="view-holder" class:hidden={route.name !== 'compose'}>
+        <ComposeView active={route.name === 'compose'} />
+      </div>
+    </main>
+    <TabBar />
+  </div>
 
   {#if toast.items.length > 0}
     <div class="toasts" aria-live="polite">
@@ -130,12 +134,23 @@ $effect(() => {
 </div>
 
 <style>
+  /* Centres the app column, with room beside it for `SideMenu` at PC width.
+     The menu is the only thing outside the column, so the column itself is off
+     centre by half the menu's width — the same trade the tab bar's successor
+     makes on every client that has one. */
+  .shell {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+  }
+
   .app {
     display: flex;
     flex-direction: column;
     min-height: 100dvh;
+    flex: 1 1 auto;
     max-width: 640px;
-    margin: 0 auto;
+    min-width: 0;
     border-left: 1px solid var(--border);
     border-right: 1px solid var(--border);
     background: var(--bg);
@@ -189,6 +204,13 @@ $effect(() => {
     .app {
       border-left: none;
       border-right: none;
+    }
+  }
+
+  /* No tab bar to clear once `SideMenu` has taken over. */
+  @media (min-width: 900px) {
+    .toasts {
+      bottom: 1.5rem;
     }
   }
 </style>
