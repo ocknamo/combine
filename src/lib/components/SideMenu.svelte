@@ -5,6 +5,7 @@
  * Takes over from `TabBar` at the same width the tab bar hides itself at, so
  * exactly one of the two is on screen.
  */
+import { navClick } from '../navClick';
 import { navTabs } from '../navTabs';
 import { router } from '../router.svelte';
 import NavIcon from './NavIcon.svelte';
@@ -21,6 +22,7 @@ const active = $derived(router.current.name);
       aria-current={active === tab.name ? 'page' : undefined}
       aria-label={tab.label}
       title={tab.label}
+      onclick={navClick[tab.name]}
     >
       <NavIcon name={tab.name} />
     </a>
@@ -50,6 +52,11 @@ const active = $derived(router.current.name);
     border: 1px solid var(--border);
     background: var(--bg);
     color: var(--text-muted);
+  }
+
+  a:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
   }
 
   a:hover {

@@ -8,7 +8,7 @@ class Router {
   /**
    * In-app history entries behind the current one.
    *
-   * Counted here rather than in {@link go} because `TabBar` navigates with
+   * Counted here rather than in {@link go} because the nav bars navigate with
    * plain `<a href="#/…">` anchors that never call it. Assigning an unchanged
    * hash pushes no entry and fires no `hashchange`, so a repeated navigation to
    * the route already on screen cannot inflate the count either.
@@ -33,9 +33,9 @@ class Router {
    *
    * The hash alone would not do that: `hashchange` arrives a task later, which
    * is a task too late for a caller that has to act on the new view while the
-   * user's tap still counts as a gesture (`TabBar` focuses the post editor).
+   * user's tap still counts as a gesture (`navClick` focuses the post editor).
    * The listener re-parsing the same hash afterwards is a no-op, and the depth
-   * bookkeeping stays there, where the anchors in `TabBar` also reach it.
+   * bookkeeping stays there, where the bars' plain anchors also reach it.
    */
   go(path: string): void {
     location.hash = path;

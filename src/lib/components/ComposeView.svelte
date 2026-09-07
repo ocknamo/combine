@@ -174,9 +174,9 @@ function teardown(): void {
 /**
  * Put the caret in the editor, or note that it was asked for.
  *
- * The tab bar calls this straight from its click handler, so the focus lands
+ * The nav bar calls this straight from its click handler, so the focus lands
  * while the tap is still in effect and the keyboard comes up with it (see
- * `TabBar.svelte`). On the first visit there is nothing to focus yet — this is
+ * `navClick.ts`). On the first visit there is nothing to focus yet — this is
  * the tap that starts the download — so the ask is held for `mountComposer`.
  */
 function focusEditor(): boolean {

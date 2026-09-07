@@ -125,6 +125,9 @@ eHagaki は combine が `window.nostr` に生やす NIP-07 シム（`src/lib/nip
 - プロフィールの共有（`navigator.share`、無い環境ではリンクをクリップボードへ）
 - 検索（ハッシュタグ / npub / nprofile / NIP-05。note1 / nevent1 / naddr1 は個別投稿画面へ遷移）
 - シングルカラム・モバイルファーストのレスポンシブデザイン
+  - ナビゲーションは画面幅で入れ替わる。狭いうちは下のタブバー、900px 以上では
+    アプリ列の左に丸いアイコンボタンのサイドメニュー（`src/lib/components/SideMenu.svelte`）。
+    行き先とアイコン、タップ時の挙動は両方で共通（`src/lib/navTabs.ts` / `src/lib/navClick.ts`）
   - 表示中のホームタブをもう一度タップすると、タイムラインの先頭までスクロールで戻る
 
 ## 開発
