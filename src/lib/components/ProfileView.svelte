@@ -43,11 +43,17 @@ async function shareProfile() {
   if (shareUrl) await shareLink(shareUrl);
 }
 
+// Emptying IndexedDB is not instant, and a second press would start a second
+// clear and a second reload.
+let clearingCache = $state(false);
+
 async function clearCache() {
+  clearingCache = true;
   try {
     await cacheRelay.clearCache();
   } catch {
     toast.show('キャッシュを削除できませんでした', 'error');
+    clearingCache = false;
     return;
   }
   // The views keep their widgets mounted, so emptying the store leaves every
@@ -114,10 +120,13 @@ async function clearCache() {
           </a>
           <!-- The two actions that keep their captions: both are destructive
                enough that they should not hide behind a glyph. The cache one is
-               absent rather than disabled when there is no cache to clear —
-               nobody asked the question a greyed-out button would pose. -->
+               absent, not disabled, whenever the running relay cannot be
+               cleared — a deployed nostr-cache bundle that predates the API,
+               say. There is nothing to explain to someone who cannot act on it. -->
           {#if cacheRelay.canClearCache}
-            <button onclick={clearCache}>キャッシュを削除</button>
+            <button disabled={clearingCache} aria-busy={clearingCache} onclick={clearCache}>
+              キャッシュを削除
+            </button>
           {/if}
           <button onclick={() => auth.logout()}>ログアウト</button>
         {/if}

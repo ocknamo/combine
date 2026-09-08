@@ -100,6 +100,14 @@ describe('cacheRelay', () => {
     await expect(cacheRelay.clearCache()).rejects.toThrow();
   });
 
+  // ProfileView shows its error toast off this rejection.
+  it('reports a failed clear to the caller', async () => {
+    await cacheRelay.start(relays);
+    clearCache.mockRejectedValueOnce(new Error('locked'));
+
+    await expect(cacheRelay.clearCache()).rejects.toThrow('locked');
+  });
+
   it('refuses to clear once the relay has been stopped', async () => {
     await cacheRelay.start(relays);
     await cacheRelay.stop();
@@ -115,5 +123,7 @@ describe('cacheRelay', () => {
     await started;
     expect(release).toHaveBeenCalledTimes(1);
     expect(cacheRelay.status).toBe('idle');
+    // The stale handle must not publish itself as something to clear either.
+    expect(cacheRelay.canClearCache).toBe(false);
   });
 });
