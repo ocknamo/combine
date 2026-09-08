@@ -18,6 +18,11 @@ class CacheRelayStore {
   status = $state<Status>('idle');
   /** The running relay's URL, or `null` when there is none to read through. */
   interceptUrl = $state<string | null>(null);
+  /**
+   * Whether {@link clearCache} has something to call. State rather than a
+   * getter over the handle, which is a plain field and would not be reactive.
+   */
+  canClearCache = $state(false);
 
   /**
    * Upstream relays the running relay was started with.
@@ -70,6 +75,7 @@ class CacheRelayStore {
       }
       this.#handle = handle;
       this.interceptUrl = handle?.interceptUrl ?? null;
+      this.canClearCache = Boolean(handle?.clearCache);
       this.status = handle ? 'ready' : 'unavailable';
     });
     return this.#starting;
@@ -93,8 +99,24 @@ class CacheRelayStore {
     this.#handle = null;
     this.#starting = null;
     this.interceptUrl = null;
+    this.canClearCache = false;
     this.status = 'idle';
     await handle?.release();
+  }
+
+  /**
+   * Empty the relay's cache, leaving it running.
+   *
+   * Only what is stored: the views keep the events already on screen, so a
+   * caller that wants the app to look reset has to reload the page.
+   *
+   * @throws when there is no relay, or the deployed bundle predates the API.
+   *   Guard with {@link canClearCache} rather than catching this.
+   */
+  async clearCache(): Promise<void> {
+    const clear = this.#handle?.clearCache;
+    if (!clear) throw new Error('The cache relay cannot be cleared');
+    await clear.call(this.#handle);
   }
 }
 

@@ -1,5 +1,6 @@
 <script lang="ts">
 import { auth } from '../auth.svelte';
+import { cacheRelay } from '../cacheRelay.svelte';
 import { toHexPubkey, toNpub } from '../nip19';
 import { userPath } from '../postRef';
 import { appUrl, shareLink } from '../share';
@@ -40,6 +41,19 @@ async function copyNpub() {
 
 async function shareProfile() {
   if (shareUrl) await shareLink(shareUrl);
+}
+
+async function clearCache() {
+  try {
+    await cacheRelay.clearCache();
+  } catch {
+    toast.show('キャッシュを削除できませんでした', 'error');
+    return;
+  }
+  // The views keep their widgets mounted, so emptying the store leaves every
+  // event on screen: reloading is what makes the app match the cache. It is the
+  // success message too — a toast would be wiped before it could be read.
+  location.reload();
 }
 </script>
 
@@ -98,8 +112,13 @@ async function shareProfile() {
           >
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" /></svg>
           </a>
-          <!-- The one action that keeps its caption: logging out is destructive
-               enough that it should not hide behind a glyph. -->
+          <!-- The two actions that keep their captions: both are destructive
+               enough that they should not hide behind a glyph. The cache one is
+               absent rather than disabled when there is no cache to clear —
+               nobody asked the question a greyed-out button would pose. -->
+          {#if cacheRelay.canClearCache}
+            <button onclick={clearCache}>キャッシュを削除</button>
+          {/if}
           <button onclick={() => auth.logout()}>ログアウト</button>
         {/if}
       </div>

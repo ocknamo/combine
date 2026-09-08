@@ -4,11 +4,19 @@ import { DEFAULT_RELAYS } from './relays';
 
 const INTERCEPT_URL = 'ws://nostr-cache.invalid';
 
+type Handle = {
+  interceptUrl: string;
+  release: () => Promise<void>;
+  clearCache?: () => Promise<void>;
+};
+
 const release = vi.fn(() => Promise.resolve());
+const clearCache = vi.fn(() => Promise.resolve());
 const startCacheRelay = vi.fn((_relays: string[]) =>
-  Promise.resolve<{ interceptUrl: string; release: () => Promise<void> } | null>({
+  Promise.resolve<Handle | null>({
     interceptUrl: INTERCEPT_URL,
     release,
+    clearCache,
   })
 );
 
@@ -21,6 +29,7 @@ beforeEach(async () => {
   await cacheRelay.stop();
   startCacheRelay.mockClear();
   release.mockClear();
+  clearCache.mockClear();
 });
 
 describe('cacheRelay', () => {
@@ -73,6 +82,31 @@ describe('cacheRelay', () => {
     await Promise.all([first, second]);
     expect(startCacheRelay).toHaveBeenCalledTimes(1);
     expect(cacheRelay.upstreamRelays).toEqual(relays);
+  });
+
+  it('clears the cache through the running relay', async () => {
+    await cacheRelay.start(relays);
+    expect(cacheRelay.canClearCache).toBe(true);
+
+    await cacheRelay.clearCache();
+    expect(clearCache).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses to clear a cache the deployed bundle cannot clear', async () => {
+    startCacheRelay.mockResolvedValueOnce({ interceptUrl: INTERCEPT_URL, release });
+    await cacheRelay.start(relays);
+
+    expect(cacheRelay.canClearCache).toBe(false);
+    await expect(cacheRelay.clearCache()).rejects.toThrow();
+  });
+
+  it('refuses to clear once the relay has been stopped', async () => {
+    await cacheRelay.start(relays);
+    await cacheRelay.stop();
+
+    expect(cacheRelay.canClearCache).toBe(false);
+    await expect(cacheRelay.clearCache()).rejects.toThrow();
+    expect(clearCache).not.toHaveBeenCalled();
   });
 
   it('releases a handle that arrives after a stop', async () => {
