@@ -77,9 +77,12 @@ $effect(() => {
     align-items: center;
     gap: 0.5rem;
     width: min(18rem, 100%);
-    padding: 1.25rem;
+    padding: 1.5rem;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    /* Rounder than the app's cards and buttons: this is the one panel that
+       covers the page, and the soft corner takes the edge off an interruption
+       nobody can dismiss. */
+    border-radius: 20px;
     background: var(--bg);
     text-align: center;
   }
@@ -100,7 +103,9 @@ $effect(() => {
   .reload {
     border: none;
     background: none;
-    padding: 0.25rem 0.5rem;
+    /* A pill, to sit with the panel's corners rather than against them. */
+    border-radius: 999px;
+    padding: 0.3rem 0.9rem;
     font-size: 0.85rem;
     color: var(--gold-strong);
     text-decoration: underline;
@@ -115,7 +120,6 @@ $effect(() => {
   .reload:focus-visible {
     outline: 2px solid var(--gold);
     outline-offset: 2px;
-    border-radius: 4px;
   }
 
   .spinner {
