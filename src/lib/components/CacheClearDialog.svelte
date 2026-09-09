@@ -110,6 +110,14 @@ $effect(() => {
     background: none;
   }
 
+  /* The browser default is a black double ring, which lands as the loudest
+     thing on the panel a second before the page goes away. */
+  .reload:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
   .spinner {
     width: 1.5rem;
     height: 1.5rem;
