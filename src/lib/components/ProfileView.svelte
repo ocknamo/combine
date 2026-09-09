@@ -6,6 +6,7 @@ import { userPath } from '../postRef';
 import { appUrl, shareLink } from '../share';
 import { toast } from '../toast.svelte';
 import BackBar from './BackBar.svelte';
+import CacheClearDialog from './CacheClearDialog.svelte';
 import FollowButton from './FollowButton.svelte';
 import LoginGate from './LoginGate.svelte';
 import ProfileCard from './ProfileCard.svelte';
@@ -44,22 +45,14 @@ async function shareProfile() {
 }
 
 // Emptying IndexedDB is not instant, and a second press would start a second
-// clear and a second reload.
+// clear and a second reload. The dialog runs the clear and the reload that
+// follows it — the views keep their widgets mounted, so emptying the store on
+// its own would leave every event on screen.
 let clearingCache = $state(false);
 
-async function clearCache() {
-  clearingCache = true;
-  try {
-    await cacheRelay.clearCache();
-  } catch {
-    toast.show('キャッシュを削除できませんでした', 'error');
-    clearingCache = false;
-    return;
-  }
-  // The views keep their widgets mounted, so emptying the store leaves every
-  // event on screen: reloading is what makes the app match the cache. It is the
-  // success message too — a toast would be wiped before it could be read.
-  location.reload();
+function cacheClearFailed() {
+  clearingCache = false;
+  toast.show('キャッシュを削除できませんでした', 'error');
 }
 </script>
 
@@ -124,7 +117,13 @@ async function clearCache() {
                cleared — a deployed nostr-cache bundle that predates the API,
                say. There is nothing to explain to someone who cannot act on it. -->
           {#if cacheRelay.canClearCache}
-            <button disabled={clearingCache} aria-busy={clearingCache} onclick={clearCache}>
+            <button
+              disabled={clearingCache}
+              aria-busy={clearingCache}
+              onclick={() => {
+                clearingCache = true;
+              }}
+            >
               キャッシュ削除
             </button>
           {/if}
@@ -135,6 +134,10 @@ async function clearCache() {
 
     <h2>投稿</h2>
     <TimelineEmbed filters={[{ kinds: [1], authors: [hex], limit: 30 }]} />
+  {/if}
+
+  {#if clearingCache}
+    <CacheClearDialog onfail={cacheClearFailed} />
   {/if}
 </section>
 
