@@ -183,6 +183,11 @@ export function loadNostrTimeline(): Promise<void> {
 export interface CacheRelayHandle {
   interceptUrl: string;
   release(): Promise<void>;
+  /**
+   * Drop every cached event. Optional for the same reason `acquireRelayHost`
+   * is: the deployed bundle may predate it.
+   */
+  clearCache?(): Promise<void>;
 }
 
 interface RelayHostConfig {
