@@ -125,7 +125,7 @@ async function clearCache() {
                say. There is nothing to explain to someone who cannot act on it. -->
           {#if cacheRelay.canClearCache}
             <button disabled={clearingCache} aria-busy={clearingCache} onclick={clearCache}>
-              キャッシュを削除
+              キャッシュ削除
             </button>
           {/if}
           <button onclick={() => auth.logout()}>ログアウト</button>
