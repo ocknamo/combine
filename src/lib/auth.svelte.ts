@@ -4,6 +4,7 @@ import {
   type NostrEvent,
   type RelayMap,
 } from 'nosskey-iframe';
+import { isDebugEnabled, withDebugFlag } from './debugFlag';
 import { DEFAULT_RELAYS, readRelaysFrom, writeRelaysFrom } from './relays';
 
 const NOSSKEY_IFRAME_URL = 'https://nosskey.app/#/iframe';
@@ -57,7 +58,8 @@ class AuthStore {
     overlay.className = 'nosskey-overlay';
     document.body.appendChild(overlay);
     const client = new NosskeyIframeClient({
-      iframeUrl: NOSSKEY_IFRAME_URL,
+      // `?debug=1` で開いたときだけ nosskey.app 側も計測モードで起動させる。
+      iframeUrl: withDebugFlag(NOSSKEY_IFRAME_URL, isDebugEnabled()),
       container: overlay,
       theme: 'neutral-light',
       lang: 'auto',
