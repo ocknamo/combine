@@ -4,6 +4,7 @@ import {
   type NostrEvent,
   type RelayMap,
 } from 'nosskey-iframe';
+import { debugLog, describeError } from './debugConsole';
 import { isDebugEnabled, withDebugFlag } from './debugFlag';
 import { DEFAULT_RELAYS, readRelaysFrom, writeRelaysFrom } from './relays';
 
@@ -187,6 +188,18 @@ class AuthStore {
    */
   async reconcileSession(): Promise<void> {
     if (!this.loggedIn || this.busy || this.#reconciling) return;
+    // 計測モードでは署名 iframe を作り直さない。
+    //
+    // `#destroyClient()` は実行中のリクエストを `NosskeyIframeClient destroyed.` で
+    // 全て reject する。iOS で Face ID シートの出入りが `visibilitychange` を起こすと、
+    // 署名の最中にこれが走って失敗する疑いがあり（再現性が無いのはそのため）、
+    // その仮説を切り分けるために破棄だけを止める。ここが出ている間に署名が通るなら
+    // 破棄レースが原因で確定する。UA では判定せず `?debug=1` でゲートするのは、
+    // iOS のアプリ内ブラウザが UA に Safari を含まず判定を外すため。
+    if (isDebugEnabled()) {
+      debugLog('reconcile skipped (debug): signing iframe kept alive');
+      return;
+    }
     this.#reconciling = true;
     try {
       this.#destroyClient();
@@ -215,7 +228,18 @@ class AuthStore {
   async signEvent(event: NostrEvent): Promise<NostrEvent> {
     const client = this.#getClient();
     await client.ready();
-    return client.signEvent(event);
+    debugLog('signEvent: start', { kind: event.kind });
+    try {
+      const signed = await client.signEvent(event);
+      debugLog('signEvent: ok', { kind: event.kind });
+      return signed;
+    } catch (err) {
+      // 失敗理由をそのまま残す。`NosskeyIframeClient destroyed.` なら破棄レース、
+      // `NotAllowedError` ならユーザージェスチャ、`PRF secret not available` なら
+      // iframe 経由の PRF、と 1 行で切り分けられる。
+      debugLog('signEvent: failed', describeError(err));
+      throw err;
+    }
   }
 }
 
