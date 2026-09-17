@@ -32,6 +32,12 @@ const active = $derived(router.current.name);
     padding-bottom: env(safe-area-inset-bottom);
   }
 
+  /* 計測モード (?debug=1): ログパネルが画面下部を占有するので、その分持ち上げる。
+     持ち上げないとナビがパネルの下敷きになりタップできない。 */
+  :global(body.combine-debug-console) nav {
+    bottom: var(--combine-debug-panel-height, 0px);
+  }
+
   a {
     --nav-icon-size: 24px;
     flex: 1;

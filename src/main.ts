@@ -8,7 +8,12 @@ await import('@konemono/nostr-web-components');
 import { mount } from 'svelte';
 import App from './App.svelte';
 import './app.css';
+import { startDebugConsole } from './lib/debugConsole';
 import { installNip07 } from './lib/nip07';
+
+// mount より前に待つ。console-daijin は起動時点以降の console しか拾わないので、
+// ここで待たないと初期化中のログがパネルに残らない。
+await startDebugConsole();
 
 // Before the app mounts, so anything that looks for a signer on load finds one.
 installNip07();

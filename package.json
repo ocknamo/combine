@@ -19,6 +19,7 @@
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tsconfig/svelte": "^5.0.8",
     "@types/node": "^25.9.2",
+    "happy-dom": "^20.14.5",
     "svelte": "^5.55.5",
     "svelte-check": "^4.4.8",
     "typescript": "~6.0.2",
@@ -27,6 +28,7 @@
   },
   "dependencies": {
     "@konemono/nostr-web-components": "^0.3.0",
+    "console-daijin": "^0.1.5",
     "nosskey-iframe": "^0.1.0"
   }
 }
