@@ -37,7 +37,6 @@ class AuthStore {
 
   #client: NosskeyIframeClient | null = null;
   #observer: MutationObserver | null = null;
-  #overlay: HTMLElement | null = null;
   #reconciling = false;
 
   constructor() {
@@ -70,22 +69,7 @@ class AuthStore {
     });
     this.#observer.observe(client.iframe, { attributes: true, attributeFilter: ['style'] });
     this.#client = client;
-    this.#overlay = overlay;
     return client;
-  }
-
-  /**
-   * Tear down the signing iframe and its overlay. The iframe caches the active
-   * account in memory for its whole lifetime, so a fresh one must be mounted to
-   * observe an account that was switched at nosskey.app. No-op when none exists.
-   */
-  #destroyClient(): void {
-    this.#observer?.disconnect();
-    this.#observer = null;
-    this.#client?.destroy();
-    this.#client = null;
-    this.#overlay?.remove();
-    this.#overlay = null;
   }
 
   async login(): Promise<void> {
@@ -94,9 +78,6 @@ class AuthStore {
     this.error = null;
     this.needsOnboarding = false;
     try {
-      // Start from a fresh iframe so a switch made at nosskey.app is picked up
-      // without a page reload (the previous iframe holds the old account).
-      this.#destroyClient();
       const client = this.#getClient();
       await client.ready();
       const pubkey = await client.getPublicKey();
@@ -178,31 +159,23 @@ class AuthStore {
 
   /**
    * Re-check which account nosskey.app is signed in as and reconcile it with the
-   * local session. Mounts a fresh iframe (the live one caches the account for
-   * its lifetime) and:
+   * local session:
    *  - adopts the new pubkey if the account was switched elsewhere,
    *  - logs out if nosskey.app reports no key (signed out elsewhere).
+   *
+   * **署名 iframe は作り直さない。** Storage Access のグラントはドキュメント単位
+   * なので、作り直すと許可をゼロからやり直すことになり、タブを切り替えるたびに
+   * 許可モーダルが出る（iOS Safari で実測）。iframe 側の host が、リクエストを
+   * 受ける直前にストレージから current アカウントを読み直すため、生かしたまま
+   * でも別タブでの切り替えを拾える。
    *
    * Best-effort and silent: transient errors keep the current session, and it
    * does nothing while signed out (a fresh {@link login} handles that case).
    */
   async reconcileSession(): Promise<void> {
     if (!this.loggedIn || this.busy || this.#reconciling) return;
-    // 計測モードでは署名 iframe を作り直さない。
-    //
-    // `#destroyClient()` は実行中のリクエストを `NosskeyIframeClient destroyed.` で
-    // 全て reject する。iOS で Face ID シートの出入りが `visibilitychange` を起こすと、
-    // 署名の最中にこれが走って失敗する疑いがあり（再現性が無いのはそのため）、
-    // その仮説を切り分けるために破棄だけを止める。ここが出ている間に署名が通るなら
-    // 破棄レースが原因で確定する。UA では判定せず `?debug=1` でゲートするのは、
-    // iOS のアプリ内ブラウザが UA に Safari を含まず判定を外すため。
-    if (isDebugEnabled()) {
-      debugLog('reconcile skipped (debug): signing iframe kept alive');
-      return;
-    }
     this.#reconciling = true;
     try {
-      this.#destroyClient();
       const client = this.#getClient();
       await client.ready();
       const pubkey = await client.getPublicKey();
