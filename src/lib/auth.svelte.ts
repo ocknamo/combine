@@ -167,7 +167,8 @@ class AuthStore {
    * なので、作り直すと許可をゼロからやり直すことになり、タブを切り替えるたびに
    * 許可モーダルが出る（iOS Safari で実測）。iframe 側の host が、リクエストを
    * 受ける直前にストレージから current アカウントを読み直すため、生かしたまま
-   * でも別タブでの切り替えを拾える。
+   * でも別タブでの切り替えを拾える。ログアウトも同じ経路で伝わる（読み直しの
+   * 結果が空なら iframe 側も current を手放し、NO_KEY が返る）。
    *
    * Best-effort and silent: transient errors keep the current session, and it
    * does nothing while signed out (a fresh {@link login} handles that case).
@@ -207,9 +208,9 @@ class AuthStore {
       debugLog('signEvent: ok', { kind: event.kind });
       return signed;
     } catch (err) {
-      // 失敗理由をそのまま残す。`NosskeyIframeClient destroyed.` なら破棄レース、
-      // `NotAllowedError` ならユーザージェスチャ、`PRF secret not available` なら
-      // iframe 経由の PRF、と 1 行で切り分けられる。
+      // 失敗理由をそのまま残す。`The document is not focused.` なら WebKit の
+      // フォーカス要件、`NotAllowedError` ならユーザージェスチャ、
+      // `PRF secret not available` なら iframe 経由の PRF、と 1 行で切り分けられる。
       debugLog('signEvent: failed', describeError(err));
       throw err;
     }
