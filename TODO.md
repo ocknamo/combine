@@ -160,18 +160,24 @@ nostr-cache のブラウザ内リレーを経由するようになった（`src/
     `auth.getWriteRelays()` にも直接送っている（`src/lib/publishOwn.ts`）。
     残りの kind は据え置きで、根本的には下記のとおり `cacheRelay.start()` の集合の話。
   - 直すなら `App.svelte` が `cacheRelay.start()` に渡す集合を read ∪ write にする。
-    読み込みの宛先も増えるので、その影響（購読数・重複）とセットで考える。
-  - 下記のアウトボックスで書き込みのルーティング（nostr-cache の段階 2）が入れば、本人の
-    kind 10002 にある write リレーへは届く。`getRelays()` にしか無い write リレーには届かないので、
-    そのときに要否を見直す。
+    読み込みの宛先も増えるので、その影響（購読数・重複）とセットで考える。既定の上流は
+    nostr-cache 側で 5 本までなので、和集合が溢れると後ろが無視される。
+  - 下記のアウトボックスで、本人の kind 10002 にある write リレーへは届くようになった。残るのは
+    `getRelays()` にしか無い write リレーと、10002 を出していない人。後者は上流に足しても
+    他のクライアントからは見つけてもらえない（読む側は 10002 で宛先を決める）ので、
+    直すなら本人の 10002 を公開するほうが本筋。
 
-- [ ] **アウトボックスモデル（NIP-65）は nostr-cache 側で入れる**
+- [x] **アウトボックスモデル（NIP-65）は nostr-cache 側で入れる**（対応済み）
   - 方針と段階は nostr-cache の
     [doc/TODO.md](https://github.com/ocknamo/nostr-cache/blob/main/doc/TODO.md)
     「優先度: 高（アウトボックスモデル / NIP-65）」。ブラウザ内リレーが著者の kind 10002 を引いて
     REQ / EVENT の宛先を決める。combine 単体では eHagaki とウィジェットの経路に手が届かない。
-  - 既定で有効になるので、combine は新しいバンドルが出れば設定なしで乗る。`cacheRelay.start()` に
-    渡している read リレーは、10002 が無い著者などに使うフォールバックの意味になる。
+  - 公開中のバンドル（段階 1〜3）で既定で有効になっており、combine は設定なしで乗っている。
+    `cacheRelay.start()` に渡している read リレーは、10002 が無い著者などに使うフォールバックの
+    意味になった。
+  - インデックスリレーは nostr-cache の既定（`wss://purplepag.es` / `wss://indexer.coracle.social` /
+    `wss://directory.yabu.me`）。`acquireRelayHost` とウィジェットの `index-relays`（nostr-cache#107）で
+    変えられるが、1 ページで設定を揃える必要があるので、combine は両方とも渡さない。
   - kind 3 の write リレーへの直接送信（`writeRelays: true`）はアウトボックス後も残す。
     ブラウザ内リレー経由の `OK` は上流の受理を言わないので、上流の `OK` を確かめられるのは
     直接送信だけ。
