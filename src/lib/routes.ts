@@ -13,6 +13,7 @@ export type RouteName =
   | 'compose'
   | 'notifications'
   | 'profile'
+  | 'profile-edit'
   | 'user'
   | 'post';
 
@@ -40,7 +41,7 @@ export function parseRoute(hash: string): Route {
     case 'notifications':
       return { name: 'notifications' };
     case 'profile':
-      return { name: 'profile' };
+      return param === 'edit' ? { name: 'profile-edit' } : { name: 'profile' };
     case 'user':
       return param ? { name: 'user', param: decodeURIComponent(param) } : { name: 'home' };
     case 'post':

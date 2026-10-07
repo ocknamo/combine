@@ -14,3 +14,8 @@ export const navTabs: NavTab[] = [
   { path: '/notifications', name: 'notifications', label: '通知' },
   { path: '/profile', name: 'profile', label: 'プロフィール' },
 ];
+
+/** The tab a route belongs to, for the bars' highlight: the edit screen is part of the profile tab. */
+export function tabOf(name: RouteName): RouteName {
+  return name === 'profile-edit' ? 'profile' : name;
+}

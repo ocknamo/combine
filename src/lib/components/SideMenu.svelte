@@ -6,11 +6,11 @@
  * exactly one of the two is on screen.
  */
 import { navClick } from '../navClick';
-import { navTabs } from '../navTabs';
+import { navTabs, tabOf } from '../navTabs';
 import { router } from '../router.svelte';
 import NavIcon from './NavIcon.svelte';
 
-const active = $derived(router.current.name);
+const active = $derived(tabOf(router.current.name));
 </script>
 
 <nav aria-label="メインナビゲーション">

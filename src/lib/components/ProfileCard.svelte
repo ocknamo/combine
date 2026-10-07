@@ -2,12 +2,14 @@
 /**
  * `<nostr-profile>`, which adopts neither a changed `relays` nor a changed
  * `user` — hence the {#key}, or it would go on showing what it was built with.
+ * A profile edit is the same: the card rereads only when rebuilt.
  *
  * A Nostr Web Components element, not a nostr-cache one: `relays` is an array
  * (`pickViewRelays`), and the name it renders is behind a shadow root with no
  * `::part`, which is what `truncateName` works around.
  */
 import { cacheRelay } from '../cacheRelay.svelte';
+import { profileRevision } from '../profileRevision.svelte';
 import { truncateName } from '../truncateName';
 
 let {
@@ -24,7 +26,7 @@ let {
   theme?: string;
 } = $props();
 
-const key = $derived(`${user}|${cacheRelay.viewRelays.join(',')}`);
+const key = $derived(`${user}|${cacheRelay.viewRelays.join(',')}|${profileRevision.value}`);
 </script>
 
 <!-- No placeholder while it waits: the view around it already says it is
