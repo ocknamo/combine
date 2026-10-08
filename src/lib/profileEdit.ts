@@ -57,12 +57,34 @@ export function rememberPublished(event: ProfileEvent): void {
   published.set(event.pubkey, event);
 }
 
+/** How long the write relays may take: the Nosskey iframe answers them, and can hang. */
+const WRITE_RELAYS_TIMEOUT_MS = 5000;
+
+/** `promise`, or `fallback` once `ms` have passed without it settling. */
+export function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      }
+    );
+  });
+}
+
 /**
  * Read and write relays both: clients publish a profile to the write relays, so
- * reading only the read set could miss the newest copy.
+ * reading only the read set could miss the newest copy. Without an answer about
+ * the write set, the read set alone beats a screen that never loads.
  */
 async function profileRelays(): Promise<string[]> {
-  return [...new Set([...auth.relays, ...(await auth.getWriteRelays())])];
+  const write = await withTimeout(auth.getWriteRelays(), WRITE_RELAYS_TIMEOUT_MS, []);
+  return [...new Set([...auth.relays, ...write])];
 }
 
 /** The newest profile the relays — or this app — know of. Never rejects. */

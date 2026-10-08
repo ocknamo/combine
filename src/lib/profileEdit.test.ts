@@ -22,7 +22,9 @@ vi.mock('./replaceableFetch', () => ({
     fetchReplaceable(spec, pubkey, relays),
 }));
 
-const { fetchProfileBase, judgeBase, rememberPublished } = await import('./profileEdit');
+const { fetchProfileBase, judgeBase, rememberPublished, withTimeout } = await import(
+  './profileEdit'
+);
 
 function profile(content: string, created_at = 1000): ProfileEvent {
   return { kind: 0, pubkey: ME, created_at, content, tags: [] };
@@ -74,5 +76,22 @@ describe('fetchProfileBase', () => {
     expect(result.base?.content).toBe('{"name":"new"}');
     expect(result.answered).toBe(1);
     expect(result.asked).toBe(3);
+  });
+});
+
+describe('withTimeout', () => {
+  it('passes a prompt answer through', async () => {
+    expect(await withTimeout(Promise.resolve(['a']), 1000, [])).toEqual(['a']);
+  });
+
+  it('falls back when the answer never comes, or fails', async () => {
+    vi.useFakeTimers();
+    const pending = withTimeout(new Promise<string[]>(() => {}), 5000, ['fallback']);
+    vi.advanceTimersByTime(5000);
+    expect(await pending).toEqual(['fallback']);
+    vi.useRealTimers();
+    expect(await withTimeout(Promise.reject(new Error('x')), 1000, ['fallback'])).toEqual([
+      'fallback',
+    ]);
   });
 });
