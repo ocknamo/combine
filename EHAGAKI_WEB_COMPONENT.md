@@ -520,6 +520,24 @@ combine 側は属性を 1 つ足しただけで初回 1 タップが消えた（
 出さないままでよい。`window.nostr` をページグローバルに生やさずに済む点は今も優れているが、
 combine は Nosskey のシムを既に生やしていて他に得るものが無く、上流には公開 API が 1 本増える。
 
+### アップロード単体の API（`uploadFile()`。**入った**）
+
+プロフィール編集の画像アップロード用に要望し、
+[Lokuyow/ehagaki#285](https://github.com/Lokuyow/ehagaki/pull/285) で Full 配布に入った（2026-10-07 配信）。
+`composer.uploadFile(file, { signal })` は、ユーザーが eHagaki に設定したアップロード先・圧縮・認証で
+1 ファイルを上げて `{ url, mimeType?, dim?, sha256?, blurhash? }` を返す。エディタ本文・下書き・UI には触れない。
+
+combine 側の使い方（`src/lib/composerUpload.ts` / `ComposeView.svelte` / `ProfileEditView.svelte`）:
+
+- 要素は 1 document 1 つで、DOM から外すとマウントと下書きが壊れるので、投稿タブの要素をそのまま使う。
+  アップロードを頼まれたら投稿タブを開いていなくても組み立てる（非表示のままで動くことを確認済み。
+  あとでタブを開けば ResizeObserver が高さを直す）
+- 機能検出は `customElements.get('ehagaki-composer').prototype.uploadFile`。エントリのチャンクだけで
+  判定でき、Dexie はマウント時のチャンクにしか無いので `shieldDexieRegistry` は要らない
+- 渡す前に combine 側で縮小・再エンコードする。eHagaki は圧縮しないと判断したとき
+  （20KB 以下・画質 `none`・圧縮後のほうが大きい・圧縮失敗）元ファイルをそのまま上げ、EXIF が残るため
+- 中止（`signal`）しても Nosskey の同意ダイアログは閉じられない。署名待ちの間にキャンセル UI は出さない
+
 ## host-owned mode（採らない）
 
 `configureHostOwned({ submit, uploadMedia })` を接続前に一度呼ぶと、eHagaki は認証も
