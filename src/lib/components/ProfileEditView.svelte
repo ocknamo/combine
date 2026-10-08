@@ -6,8 +6,16 @@
  * only what the user changed, applied to the profile as fetched again at save
  * time (`buildProfile`). So a field changed on another device while this was
  * open is not reverted by a save here.
+ *
+ * Images can be uploaded through the post editor's eHagaki element
+ * (`composerUpload.ts`), after being redrawn here (`imagePrep.ts`). The button
+ * only appears when the deployed eHagaki has `uploadFile()`; until then the
+ * URL fields are the way in.
  */
 import { auth } from '../auth.svelte';
+import { uploadViaComposer } from '../composerUpload';
+import { composerSupportsUpload, uploadErrorMessage } from '../ehagakiComposer';
+import { MAX_EDGE, prepareImage } from '../imagePrep';
 import { proxiedImageUrl } from '../nostrCache';
 import { type BaseVerdict, fetchProfileBase, judgeBase, rememberPublished } from '../profileEdit';
 import {
@@ -47,6 +55,7 @@ const PLACEHOLDERS: Partial<Record<ProfileField, string>> = {
 };
 
 const IMAGE_FIELDS = new Set<ProfileField>(['picture', 'banner']);
+type ImageField = keyof typeof MAX_EDGE;
 
 let status = $state<'loading' | BaseVerdict>('loading');
 let initial = $state<ProfileForm>(profileForm(null));
@@ -54,6 +63,12 @@ let form = $state<ProfileForm>(profileForm(null));
 let saving = $state(false);
 /** The value an image failed to load for, so the message clears once it is edited. */
 let brokenImage = $state<Partial<Record<ProfileField, string>>>({});
+let canUpload = $state(false);
+/** The field an upload is running for. One at a time: the element refuses a second anyway. */
+let uploading = $state<ImageField | null>(null);
+let uploadTarget: ImageField = 'picture';
+let fileInput = $state<HTMLInputElement | null>(null);
+let uploadAbort: AbortController | null = null;
 
 const errors = $derived(
   Object.fromEntries(
@@ -82,10 +97,52 @@ $effect(() => {
   if (pubkey) void load(pubkey);
 });
 
+// Fetching the bundle here is what lets the button be absent rather than fail
+// on press; it is usually cached already by a visit to the post tab.
+$effect(() => {
+  composerSupportsUpload().then(
+    (supported) => {
+      canUpload = supported;
+    },
+    () => {
+      canUpload = false;
+    }
+  );
+  return () => uploadAbort?.abort();
+});
+
+function pickImage(key: ImageField): void {
+  uploadTarget = key;
+  fileInput?.click();
+}
+
+async function onFilePicked(): Promise<void> {
+  const file = fileInput?.files?.[0];
+  if (fileInput) fileInput.value = '';
+  if (!file || uploading) return;
+  const key = uploadTarget;
+  uploading = key;
+  uploadAbort = new AbortController();
+  try {
+    const prepared = await prepareImage(file, MAX_EDGE[key]);
+    const result = await uploadViaComposer(prepared, uploadAbort.signal);
+    form[key] = result.url;
+  } catch (err) {
+    const message = uploadErrorMessage(err);
+    if (message) {
+      console.error('[combine] profile image upload failed:', err);
+      toast.show(message, 'error');
+    }
+  } finally {
+    uploading = null;
+    uploadAbort = null;
+  }
+}
+
 async function save(event: SubmitEvent): Promise<void> {
   event.preventDefault();
   const pubkey = auth.pubkey;
-  if (!pubkey || saving || !dirty || !valid) return;
+  if (!pubkey || saving || uploading || !dirty || !valid) return;
   saving = true;
   try {
     // Again, rather than the copy the form was built from: minutes may have
@@ -120,6 +177,10 @@ async function save(event: SubmitEvent): Promise<void> {
   } finally {
     saving = false;
   }
+}
+
+function isImageField(key: ProfileField): key is ImageField {
+  return IMAGE_FIELDS.has(key);
 }
 
 function showPreview(key: ProfileField): boolean {
@@ -165,6 +226,17 @@ function showPreview(key: ProfileField): boolean {
               bind:value={form[key]}
             />
           {/if}
+          {#if canUpload && isImageField(key)}
+            <button
+              type="button"
+              class="upload"
+              onclick={() => pickImage(key)}
+              disabled={uploading !== null || saving}
+              aria-busy={uploading === key}
+            >
+              {uploading === key ? 'アップロードしています…' : '画像をアップロード'}
+            </button>
+          {/if}
           {#if errors[key]}
             <p class="error">{errors[key]}</p>
           {:else if showPreview(key)}
@@ -184,11 +256,20 @@ function showPreview(key: ProfileField): boolean {
         </div>
       {/each}
 
+      <input
+        type="file"
+        accept="image/*"
+        hidden
+        bind:this={fileInput}
+        onchange={onFilePicked}
+      />
+
       <div class="actions">
         <button type="button" onclick={() => router.back('/profile')} disabled={saving}>
           キャンセル
         </button>
-        <button type="submit" class="primary" disabled={saving || !dirty || !valid} aria-busy={saving}>
+        <button type="submit" class="primary" disabled={saving || uploading !== null || !dirty || !valid}
+          aria-busy={saving}>
           {saving ? '保存しています…' : '保存'}
         </button>
       </div>
@@ -268,6 +349,12 @@ function showPreview(key: ProfileField): boolean {
     width: 100%;
     aspect-ratio: 3 / 1;
     border-radius: 6px;
+  }
+
+  .upload {
+    align-self: flex-start;
+    font-size: 0.85rem;
+    padding: 0.35rem 0.8rem;
   }
 
   .actions {
