@@ -4,8 +4,6 @@ import {
   type NostrEvent,
   type RelayMap,
 } from 'nosskey-iframe';
-import { debugLog, describeError } from './debugConsole';
-import { isDebugEnabled, withDebugFlag } from './debugFlag';
 import { DEFAULT_RELAYS, readRelaysFrom, writeRelaysFrom } from './relays';
 
 const NOSSKEY_IFRAME_URL = 'https://nosskey.app/#/iframe';
@@ -58,8 +56,7 @@ class AuthStore {
     overlay.className = 'nosskey-overlay';
     document.body.appendChild(overlay);
     const client = new NosskeyIframeClient({
-      // `?debug=1` で開いたときだけ nosskey.app 側も計測モードで起動させる。
-      iframeUrl: withDebugFlag(NOSSKEY_IFRAME_URL, isDebugEnabled()),
+      iframeUrl: NOSSKEY_IFRAME_URL,
       container: overlay,
       theme: 'neutral-light',
       lang: 'auto',
@@ -202,18 +199,7 @@ class AuthStore {
   async signEvent(event: NostrEvent): Promise<NostrEvent> {
     const client = this.#getClient();
     await client.ready();
-    debugLog('signEvent: start', { kind: event.kind });
-    try {
-      const signed = await client.signEvent(event);
-      debugLog('signEvent: ok', { kind: event.kind });
-      return signed;
-    } catch (err) {
-      // 失敗理由をそのまま残す。`The document is not focused.` なら WebKit の
-      // フォーカス要件、`NotAllowedError` ならユーザージェスチャ、
-      // `PRF secret not available` なら iframe 経由の PRF、と 1 行で切り分けられる。
-      debugLog('signEvent: failed', describeError(err));
-      throw err;
-    }
+    return client.signEvent(event);
   }
 }
 
