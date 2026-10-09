@@ -10,6 +10,8 @@ describe('parseRoute', () => {
     expect(parseRoute('#/compose')).toEqual({ name: 'compose' });
     expect(parseRoute('#/notifications')).toEqual({ name: 'notifications' });
     expect(parseRoute('#/profile')).toEqual({ name: 'profile' });
+    expect(parseRoute('#/profile/edit')).toEqual({ name: 'profile-edit' });
+    expect(parseRoute('#/profile/other')).toEqual({ name: 'profile' });
   });
 
   it('falls back to home for an empty or unknown hash', () => {

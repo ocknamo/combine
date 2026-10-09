@@ -239,3 +239,24 @@ export async function startCacheRelay(relays: string[]): Promise<CacheRelayHandl
     return null;
   }
 }
+
+/**
+ * An image URL through {@link IMAGE_PROXY}, in the widgets' format, for the
+ * few images combine draws itself. Unchanged when there is no proxy or the URL
+ * does not parse — the browser then loads it directly, as the widgets would.
+ */
+export function proxiedImageUrl(
+  url: string,
+  width: number,
+  proxy: string | undefined = IMAGE_PROXY
+): string {
+  if (!proxy) return url;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return url;
+  return `${proxy}/width=${width},quality=80,format=webp/${parsed.href}`;
+}

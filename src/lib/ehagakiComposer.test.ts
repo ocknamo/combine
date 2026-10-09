@@ -22,6 +22,7 @@ import {
   MIN_COMPOSER_HEIGHT,
   postErrorMessage,
   shieldDexieRegistry,
+  uploadErrorMessage,
 } from './ehagakiComposer';
 
 /** Enough of the Storage interface for {@link clearEhagakiStorage}. */
@@ -139,6 +140,31 @@ describe('postErrorMessage', () => {
 
   it('still shows an unknown code rather than swallowing the failure', () => {
     expect(postErrorMessage('something_new')).toContain('something_new');
+  });
+});
+
+describe('uploadErrorMessage', () => {
+  const named = (name: string, message = '') => Object.assign(new Error(message), { name });
+
+  it('says nothing when the user cancelled', () => {
+    expect(uploadErrorMessage(named('AbortError'))).toBeNull();
+  });
+
+  it('translates the element’s error names', () => {
+    expect(uploadErrorMessage(named('upload_in_progress'))).toContain('処理中');
+    expect(uploadErrorMessage(named('login_required'))).toContain('ログイン');
+    expect(uploadErrorMessage(named('unsupported'))).toContain('対応していません');
+  });
+
+  it('passes on the decoder’s own message', () => {
+    expect(uploadErrorMessage(named('ImageDecodeError', 'この画像形式は読み込めません'))).toBe(
+      'この画像形式は読み込めません'
+    );
+  });
+
+  it('falls back to a generic failure for anything else', () => {
+    expect(uploadErrorMessage(new Error('boom'))).toBe('アップロードに失敗しました。');
+    expect(uploadErrorMessage('weird')).toBe('アップロードに失敗しました。');
   });
 });
 

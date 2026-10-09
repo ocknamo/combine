@@ -84,10 +84,10 @@ export function followedPubkeys(base: { tags: string[][] } | null): Set<string> 
 }
 
 /**
- * Relays drop the older of two contact lists, so a device with a slow clock
- * would publish a follow that silently never happened. Step past the base.
+ * Relays drop the older of two replaceable events, so a device with a slow clock
+ * would publish a change that silently never happened. Step past the base.
  */
-export function nextCreatedAt(base: ContactList | null, now: number): number {
+export function nextCreatedAt(base: { created_at: number } | null, now: number): number {
   return Math.max(now, (base?.created_at ?? 0) + 1);
 }
 

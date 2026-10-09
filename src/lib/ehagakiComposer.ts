@@ -170,6 +170,21 @@ export interface EhagakiComposerElement extends HTMLElement {
   /** Applied atomically: an unknown or invalid key rejects the whole payload. */
   setSettings(settings: ComposerSettings): Promise<readonly string[]>;
   setContext(context: ComposerContext): Promise<void>;
+  /**
+   * Upload one file through the user's eHagaki upload settings, without
+   * touching the editor (Lokuyow/ehagaki#285). Optional because a cached older
+   * bundle lacks it; check with {@link composerSupportsUpload}.
+   */
+  uploadFile?(file: File, options?: { signal?: AbortSignal }): Promise<EHagakiUploadResult>;
+}
+
+/** What `uploadFile()` resolves with; the optional fields only when the server confirmed them. */
+export interface EHagakiUploadResult {
+  url: string;
+  mimeType?: string;
+  dim?: string;
+  sha256?: string;
+  blurhash?: string;
 }
 
 /**
@@ -205,6 +220,35 @@ export function postErrorMessage(code: string): string | null {
   }
 }
 
+/**
+ * A toast for a failed `uploadFile()`, or `null` when the user should see
+ * nothing. The element names its errors in `Error.name`; `unsupported` is
+ * combine's own, for a bundle that predates the method.
+ */
+export function uploadErrorMessage(error: unknown): string | null {
+  const name = error instanceof Error ? error.name : '';
+  switch (name) {
+    case 'AbortError':
+      return null;
+    case 'ImageDecodeError':
+      return (error as Error).message;
+    case 'unsupported':
+      return 'いまの eHagaki はアップロードに対応していません。';
+    case 'not_ready':
+      return 'エディタの準備ができていません。少し待ってからもう一度お試しください。';
+    case 'login_required':
+      return 'アップロードにはエディタへのログインが必要です。投稿タブを開いて確認してください。';
+    case 'upload_in_progress':
+      return '投稿エディタで処理中です。終わってからもう一度お試しください。';
+    case 'unsupported_media':
+      return 'このファイルはアップロードできません。';
+    case 'disconnected':
+      return 'アップロード中にエディタが閉じられました。';
+    default:
+      return 'アップロードに失敗しました。';
+  }
+}
+
 let pending: Promise<void> | null = null;
 
 /**
@@ -230,6 +274,19 @@ export function loadEhagakiComposer(): Promise<void> {
   });
 
   return pending;
+}
+
+/**
+ * Whether the deployed bundle has `uploadFile()`, loading it if need be.
+ *
+ * Only the entry module is imported here, which defines the element and its
+ * methods; the editor and its Dexie come with the first mount, so this needs no
+ * {@link shieldDexieRegistry}.
+ */
+export async function composerSupportsUpload(): Promise<boolean> {
+  await loadEhagakiComposer();
+  const ctor = customElements.get(EHAGAKI_TAG);
+  return typeof ctor?.prototype?.uploadFile === 'function';
 }
 
 /**

@@ -7,6 +7,7 @@ import Header from './lib/components/Header.svelte';
 import HomeView from './lib/components/HomeView.svelte';
 import NotificationsView from './lib/components/NotificationsView.svelte';
 import PostView from './lib/components/PostView.svelte';
+import ProfileEditView from './lib/components/ProfileEditView.svelte';
 import ProfileView from './lib/components/ProfileView.svelte';
 import SearchView from './lib/components/SearchView.svelte';
 import SideMenu from './lib/components/SideMenu.svelte';
@@ -105,6 +106,8 @@ $effect(() => {
         <NotificationsView />
       {:else if route.name === 'profile'}
         <ProfileView user={auth.pubkey} tab />
+      {:else if route.name === 'profile-edit'}
+        <ProfileEditView />
       {:else if route.name === 'user'}
         <ProfileView user={route.param} />
       {:else if route.name === 'post'}

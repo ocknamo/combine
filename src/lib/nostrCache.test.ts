@@ -7,6 +7,7 @@ import {
   NOSTR_CACHE_PROFILE_FRESHNESS,
   NOSTR_CACHE_SCRIPT_URL,
   ogpProxyAttr,
+  proxiedImageUrl,
   relaysAttr,
   startCacheRelay,
 } from './nostrCache';
@@ -91,6 +92,26 @@ describe('imageProxyAttr', () => {
   it('is undefined when the URL carries a query or fragment', () => {
     expect(imageProxyAttr('https://images.example.com/image?key=abc')).toBeUndefined();
     expect(imageProxyAttr('https://images.example.com/image#frag')).toBeUndefined();
+  });
+});
+
+describe('proxiedImageUrl', () => {
+  const proxy = 'https://img.example/image';
+
+  it('wraps the image in the widgets’ format', () => {
+    expect(proxiedImageUrl('https://x.example/a.png', 160, proxy)).toBe(
+      'https://img.example/image/width=160,quality=80,format=webp/https://x.example/a.png'
+    );
+  });
+
+  it('leaves the URL alone without a proxy or a usable URL', () => {
+    expect(proxiedImageUrl('https://x.example/a.png', 160, undefined)).toBe(
+      'https://x.example/a.png'
+    );
+    expect(proxiedImageUrl('not a url', 160, proxy)).toBe('not a url');
+    expect(proxiedImageUrl('data:image/png;base64,AA', 160, proxy)).toBe(
+      'data:image/png;base64,AA'
+    );
   });
 });
 

@@ -6,13 +6,16 @@
  * when to create it is the whole point. It pulls in a few megabytes of editor
  * and mounts it on combine's main thread, so it is built the first time the
  * user opens this tab — and kept from then on, since a second visit should not
- * pay for that again. `active` is what tells it that moment has come; the view
- * itself stays mounted for the app's lifetime (see `App.svelte`).
+ * pay for that again. `active` is what tells it that moment has come — or an
+ * upload asked for from another view (`composerUpload.ts`), which needs the
+ * element but not the tab. The view itself stays mounted for the app's
+ * lifetime (see `App.svelte`).
  */
 import { auth } from '../auth.svelte';
 import { cacheRelay } from '../cacheRelay.svelte';
 import { composeContext } from '../composeContext.svelte';
 import { setComposeFocusHandler } from '../composeFocus';
+import { setComposerUploadHandler } from '../composerUpload';
 import {
   applyComposerTheme,
   type ComposerContext,
@@ -23,6 +26,7 @@ import {
   describeFailure,
   EHAGAKI_SETTINGS,
   EHAGAKI_SITE_URL,
+  type EHagakiUploadResult,
   type EhagakiComposerElement,
   focusComposerEditor,
   INIT_ERROR_EVENT,
@@ -72,6 +76,23 @@ let focusWanted = false;
  */
 let initFailure: string | null = null;
 
+/** Set once another view asks for an upload: from then on the element is built even off this tab. */
+let uploadDemand = $state(false);
+/** Uploads waiting for the element to come up. */
+let readyWaiters: {
+  resolve: (element: EhagakiComposerElement) => void;
+  reject: (err: Error) => void;
+}[] = [];
+
+function settleWaiters(outcome: EhagakiComposerElement | Error): void {
+  const waiters = readyWaiters;
+  readyWaiters = [];
+  for (const waiter of waiters) {
+    if (outcome instanceof Error) waiter.reject(outcome);
+    else waiter.resolve(outcome);
+  }
+}
+
 let targetKind = $state<'reply' | 'quote'>('reply');
 let targetId = $state('');
 let contextLabel = $state<string | null>(null);
@@ -107,6 +128,7 @@ async function mountComposer(): Promise<void> {
     await element.whenReady();
     await element.setSettings(EHAGAKI_SETTINGS);
     status = 'ready';
+    settleWaiters(element);
     if (pendingContext) {
       const context = pendingContext;
       pendingContext = null;
@@ -137,6 +159,7 @@ async function mountComposer(): Promise<void> {
     } else {
       failure = initFailure ?? describeFailure(err);
       status = 'failed';
+      settleWaiters(new Error(failure));
     }
   } finally {
     restoreDexie();
@@ -217,7 +240,9 @@ $effect(() => {
   const intercept = cacheRelay.interceptUrl;
   const stale = builtFor !== pubkey || (resolved && builtWith !== intercept);
   if (composer && stale) teardown();
-  if (resolved && active && pubkey !== null && hostEl !== null) void mountComposer();
+  if (resolved && (active || uploadDemand) && pubkey !== null && hostEl !== null) {
+    void mountComposer();
+  }
 });
 
 // The tab bar has no reference to this view, and the answer it needs cannot
@@ -225,6 +250,47 @@ $effect(() => {
 $effect(() => {
   setComposeFocusHandler(focusEditor);
   return () => setComposeFocusHandler(null);
+});
+
+/** The element once it is up, building it first if this tab has never been opened. */
+function readyComposer(signal: AbortSignal): Promise<EhagakiComposerElement> {
+  if (composer && status === 'ready') return Promise.resolve(composer);
+  if (status === 'failed') retry();
+  uploadDemand = true;
+  return new Promise((resolve, reject) => {
+    const waiter = {
+      resolve: (element: EhagakiComposerElement) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(element);
+      },
+      reject: (err: Error) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(err);
+      },
+    };
+    // Waiting can outlast the asking view — a logout leaves nothing to build.
+    const onAbort = () => {
+      readyWaiters = readyWaiters.filter((w) => w !== waiter);
+      reject(new DOMException('The operation was aborted.', 'AbortError'));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    readyWaiters.push(waiter);
+  });
+}
+
+async function uploadForOtherView(file: File, signal: AbortSignal): Promise<EHagakiUploadResult> {
+  const element = await readyComposer(signal);
+  if (typeof element.uploadFile !== 'function') {
+    throw Object.assign(new Error('The eHagaki bundle has no uploadFile().'), {
+      name: 'unsupported',
+    });
+  }
+  return await element.uploadFile(file, { signal });
+}
+
+$effect(() => {
+  setComposerUploadHandler(uploadForOtherView);
+  return () => setComposerUploadHandler(null);
 });
 
 // Logging out has to take the composer's storage with it — its draft and the
