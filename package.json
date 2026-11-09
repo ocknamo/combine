@@ -29,5 +29,8 @@
   "dependencies": {
     "@konemono/nostr-web-components": "^0.3.0",
     "nosskey-iframe": "^0.1.0"
+  },
+  "allowScripts": {
+    "fsevents": false
   }
 }
