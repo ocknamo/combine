@@ -10,6 +10,8 @@
  * (`publishOwn.ts`) — only their base is fetched around it.
  */
 
+import { isTrustworthyEvent } from './verifyEvent';
+
 /** The minimum of the WebSocket API this needs, so a test can stand one in. */
 export interface QuerySocket {
   send(data: string): void;
@@ -24,6 +26,8 @@ export interface FetchReplaceableOptions {
   createSocket?: (url: string) => QuerySocket;
   /** How long one relay gets to answer, connection included. */
   timeoutMs?: number;
+  /** Whether a relay's event is the author's own. Only a test replaces it. */
+  verify?: (event: unknown) => boolean;
 }
 
 export interface FetchReplaceableResult<T> {
@@ -53,12 +57,13 @@ const FETCH_TIMEOUT_MS = 6000;
 /** Only so a relay that streams forever cannot hold the caller hostage. */
 const MAX_EVENTS_PER_RELAY = 10;
 
-/** This person's event out of one incoming frame, or `null`. */
+/** This person's event out of one incoming frame, or `null` — signature checked. */
 export function readReplaceableEvent<T>(
   data: unknown,
   subId: string,
   pubkey: string,
-  parse: ReplaceableKind<T>['parse']
+  parse: ReplaceableKind<T>['parse'],
+  verify: (event: unknown) => boolean = isTrustworthyEvent
 ): T | null {
   if (typeof data !== 'string') return null;
   let frame: unknown;
@@ -68,7 +73,9 @@ export function readReplaceableEvent<T>(
     return null;
   }
   if (!Array.isArray(frame) || frame[0] !== 'EVENT' || frame[1] !== subId) return null;
-  return parse(frame[2], pubkey);
+  const event = parse(frame[2], pubkey);
+  // Parsed first: the shape checks are cheap, the signature is not.
+  return event !== null && verify(frame[2]) ? event : null;
 }
 
 /** Whether a frame is the end of stored events for this subscription. */
@@ -96,7 +103,8 @@ function queryRelay<T>(
   pubkey: string,
   spec: ReplaceableKind<T>,
   createSocket: (url: string) => QuerySocket,
-  timeoutMs: number
+  timeoutMs: number,
+  verify: ((event: unknown) => boolean) | undefined
 ): Promise<RelayAnswer<T>> {
   return new Promise((resolve) => {
     let socket: QuerySocket;
@@ -141,7 +149,7 @@ function queryRelay<T>(
       }
     });
     socket.addEventListener('message', (ev) => {
-      const event = readReplaceableEvent(ev.data, subId, pubkey, spec.parse);
+      const event = readReplaceableEvent(ev.data, subId, pubkey, spec.parse, verify);
       if (event) {
         best = spec.pickLatest([best, event]);
         seen += 1;
@@ -173,7 +181,7 @@ export async function fetchReplaceable<T>(
   const timeoutMs = options.timeoutMs ?? FETCH_TIMEOUT_MS;
 
   const answers = await Promise.all(
-    relays.map((relay) => queryRelay(relay, pubkey, spec, createSocket, timeoutMs))
+    relays.map((relay) => queryRelay(relay, pubkey, spec, createSocket, timeoutMs, options.verify))
   );
 
   return {

@@ -8,7 +8,7 @@
  */
 import type { UnsignedEvent } from './publishOwn';
 
-/** No `id` or `sig`: combine cannot verify a signature, so it does not carry one. */
+/** No `id` or `sig`: they are checked where the event is read (`replaceableFetch.ts`), then dropped. */
 export interface ContactList {
   kind: 3;
   pubkey: string;

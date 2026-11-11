@@ -41,7 +41,10 @@ const KIND_7: ReplaceableKind<Note> = {
 describe('fetchReplaceable', () => {
   it('asks for the kind it was given and vets events with its parser', async () => {
     const socket = new FakeSocket();
-    const pending = fetchReplaceable(KIND_7, ME, ['wss://r'], { createSocket: () => socket });
+    const pending = fetchReplaceable(KIND_7, ME, ['wss://r'], {
+      createSocket: () => socket,
+      verify: () => true,
+    });
 
     socket.emit('open');
     const req = JSON.parse(socket.sent[0] as string);

@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ContactList } from './contacts';
 import { fetchContacts, isEose, type QuerySocket, readContactEvent } from './contactsFetch';
+import { signTestEvent, TEST_PUBKEY } from './verifyEvent.test-helpers';
 
 const ME = 'a'.repeat(64);
 const ALICE = 'b'.repeat(64);
 const BOB = 'c'.repeat(64);
+
+/** These tests are about the sockets; signatures have their own below and in `verifyEvent.test.ts`. */
+const anySignature = () => true;
 
 type Listener = (ev: { data?: unknown }) => void;
 
@@ -68,20 +72,36 @@ describe('readContactEvent', () => {
   const event = { kind: 3, pubkey: ME, created_at: 1000, content: '', tags: [['p', ALICE]] };
 
   it('reads our contact list off the subscription we opened', () => {
-    expect(readContactEvent(JSON.stringify(['EVENT', 'sub', event]), 'sub', ME)).toEqual(event);
+    expect(
+      readContactEvent(JSON.stringify(['EVENT', 'sub', event]), 'sub', ME, anySignature)
+    ).toEqual(event);
   });
 
   it('ignores frames that are not ours', () => {
-    expect(readContactEvent(JSON.stringify(['EVENT', 'other', event]), 'sub', ME)).toBeNull();
     expect(
-      readContactEvent(JSON.stringify(['EVENT', 'sub', { ...event, pubkey: ALICE }]), 'sub', ME)
+      readContactEvent(JSON.stringify(['EVENT', 'other', event]), 'sub', ME, anySignature)
     ).toBeNull();
     expect(
-      readContactEvent(JSON.stringify(['EVENT', 'sub', { ...event, kind: 1 }]), 'sub', ME)
+      readContactEvent(
+        JSON.stringify(['EVENT', 'sub', { ...event, pubkey: ALICE }]),
+        'sub',
+        ME,
+        anySignature
+      )
     ).toBeNull();
-    expect(readContactEvent(JSON.stringify(['NOTICE', 'hello']), 'sub', ME)).toBeNull();
-    expect(readContactEvent('not json', 'sub', ME)).toBeNull();
-    expect(readContactEvent(new ArrayBuffer(4), 'sub', ME)).toBeNull();
+    expect(
+      readContactEvent(
+        JSON.stringify(['EVENT', 'sub', { ...event, kind: 1 }]),
+        'sub',
+        ME,
+        anySignature
+      )
+    ).toBeNull();
+    expect(
+      readContactEvent(JSON.stringify(['NOTICE', 'hello']), 'sub', ME, anySignature)
+    ).toBeNull();
+    expect(readContactEvent('not json', 'sub', ME, anySignature)).toBeNull();
+    expect(readContactEvent(new ArrayBuffer(4), 'sub', ME, anySignature)).toBeNull();
   });
 });
 
@@ -99,7 +119,7 @@ describe('fetchContacts', () => {
 
   it('asks every relay for this person only', async () => {
     const { create, all } = sockets();
-    const pending = fetchContacts(ME, relays, { createSocket: create });
+    const pending = fetchContacts(ME, relays, { createSocket: create, verify: anySignature });
     for (const socket of all.values()) socket.answer([]);
     await pending;
 
@@ -112,7 +132,7 @@ describe('fetchContacts', () => {
 
   it('takes the newest list across relays', async () => {
     const { create, all } = sockets();
-    const pending = fetchContacts(ME, relays, { createSocket: create });
+    const pending = fetchContacts(ME, relays, { createSocket: create, verify: anySignature });
     all.get(relays[0] as string)?.answer([{ created_at: 1000, tags: [['p', ALICE]] }]);
     all.get(relays[1] as string)?.answer([
       {
@@ -132,7 +152,7 @@ describe('fetchContacts', () => {
 
   it('takes the newest when one relay offers several', async () => {
     const { create, all } = sockets();
-    const pending = fetchContacts(ME, relays, { createSocket: create });
+    const pending = fetchContacts(ME, relays, { createSocket: create, verify: anySignature });
     all.get(relays[0] as string)?.answer([{ created_at: 1000 }, { created_at: 3000 }]);
     all.get(relays[1] as string)?.answer([]);
     expect((await pending).event?.created_at).toBe(3000);
@@ -140,7 +160,10 @@ describe('fetchContacts', () => {
 
   it('closes the subscription before dropping the socket', async () => {
     const { create, all } = sockets();
-    const pending = fetchContacts(ME, [relays[0] as string], { createSocket: create });
+    const pending = fetchContacts(ME, [relays[0] as string], {
+      createSocket: create,
+      verify: anySignature,
+    });
     const socket = all.get(relays[0] as string) as FakeSocket;
     socket.answer([]);
     await pending;
@@ -153,7 +176,11 @@ describe('fetchContacts', () => {
     vi.useFakeTimers();
     try {
       const { create, all } = sockets();
-      const pending = fetchContacts(ME, relays, { createSocket: create, timeoutMs: 100 });
+      const pending = fetchContacts(ME, relays, {
+        createSocket: create,
+        timeoutMs: 100,
+        verify: anySignature,
+      });
       all.get(relays[0] as string)?.answer([{ created_at: 1000, tags: [['p', ALICE]] }]);
       vi.advanceTimersByTime(100);
 
@@ -169,7 +196,7 @@ describe('fetchContacts', () => {
   it('answers nobody when every relay failed', async () => {
     // Apart from the case below: the user may well have a list nobody handed over.
     const { create, all } = sockets();
-    const pending = fetchContacts(ME, relays, { createSocket: create });
+    const pending = fetchContacts(ME, relays, { createSocket: create, verify: anySignature });
     for (const socket of all.values()) socket.emit('error');
 
     const result = await pending;
@@ -181,7 +208,7 @@ describe('fetchContacts', () => {
   it('records who reached EOSE when nobody had a list', async () => {
     // Here the relays have spoken: there really is no contact list.
     const { create, all } = sockets();
-    const pending = fetchContacts(ME, relays, { createSocket: create });
+    const pending = fetchContacts(ME, relays, { createSocket: create, verify: anySignature });
     for (const socket of all.values()) socket.answer([]);
 
     const result = await pending;
@@ -191,7 +218,10 @@ describe('fetchContacts', () => {
 
   it('counts a relay that hung up before EOSE as a failure', async () => {
     const { create, all } = sockets();
-    const pending = fetchContacts(ME, [relays[0] as string], { createSocket: create });
+    const pending = fetchContacts(ME, [relays[0] as string], {
+      createSocket: create,
+      verify: anySignature,
+    });
     all.get(relays[0] as string)?.emit('close');
 
     const result = await pending;
@@ -201,11 +231,60 @@ describe('fetchContacts', () => {
 
   it('opens nothing when there are no relays to ask', async () => {
     const create = vi.fn();
-    expect(await fetchContacts(ME, [], { createSocket: create })).toEqual({
+    expect(await fetchContacts(ME, [], { createSocket: create, verify: anySignature })).toEqual({
       event: null,
       answered: [],
       failed: [],
     });
     expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe('signatures', () => {
+  const now = Math.floor(Date.now() / 1000);
+  const frame = (event: unknown) => JSON.stringify(['EVENT', 'sub', event]);
+
+  it('reads a list its author signed', () => {
+    const signed = signTestEvent({ kind: 3, created_at: now, content: '', tags: [['p', ALICE]] });
+    expect(readContactEvent(frame(signed), 'sub', TEST_PUBKEY)?.tags).toEqual([['p', ALICE]]);
+  });
+
+  it('refuses a list nobody signed, or whose content changed after signing', () => {
+    const signed = signTestEvent({ kind: 3, created_at: now, content: '', tags: [['p', ALICE]] });
+    const { id: _id, sig: _sig, ...unsigned } = signed;
+    expect(readContactEvent(frame(unsigned), 'sub', TEST_PUBKEY)).toBeNull();
+    expect(readContactEvent(frame({ ...signed, tags: [] }), 'sub', TEST_PUBKEY)).toBeNull();
+  });
+
+  it('builds on the signed list when another relay answers with a newer forgery', async () => {
+    const { create, all } = sockets();
+    const relays = ['wss://honest', 'wss://hostile'];
+    const pending = fetchContacts(TEST_PUBKEY, relays, { createSocket: create });
+
+    const genuine = signTestEvent({ kind: 3, created_at: now, content: '', tags: [['p', ALICE]] });
+    const honest = all.get('wss://honest') as FakeSocket;
+    honest.emit('open');
+    honest.emit('message', { data: JSON.stringify(['EVENT', honest.subId, genuine]) });
+    honest.emit('message', { data: JSON.stringify(['EOSE', honest.subId]) });
+
+    const hostile = all.get('wss://hostile') as FakeSocket;
+    hostile.emit('open');
+    hostile.emit('message', {
+      data: JSON.stringify([
+        'EVENT',
+        hostile.subId,
+        { ...genuine, created_at: now + 60, tags: [['p', BOB]] },
+      ]),
+    });
+    hostile.emit('message', { data: JSON.stringify(['EOSE', hostile.subId]) });
+
+    const result = await pending;
+    expect(result.event?.tags).toEqual([['p', ALICE]]);
+    expect(result.answered).toEqual(relays);
+  });
+
+  it('refuses a signed list dated far ahead of the clock', () => {
+    const future = signTestEvent({ kind: 3, created_at: now + 3600, content: '', tags: [] });
+    expect(readContactEvent(frame(future), 'sub', TEST_PUBKEY)).toBeNull();
   });
 });

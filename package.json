@@ -28,6 +28,8 @@
   },
   "dependencies": {
     "@konemono/nostr-web-components": "^0.3.0",
+    "@noble/curves": "^1.9.7",
+    "@noble/hashes": "^1.8.0",
     "nosskey-iframe": "^0.1.0"
   },
   "allowScripts": {
