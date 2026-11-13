@@ -9,14 +9,6 @@ import { schnorr } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 
-/**
- * How far ahead of this device's clock an event may be dated.
- *
- * `nextCreatedAt` steps past the base, so a far-future base would be published
- * as a far-future event that no ordinary update could ever replace.
- */
-export const MAX_FUTURE_SECONDS = 600;
-
 const HEX_64 = /^[0-9a-f]{64}$/;
 const HEX_128 = /^[0-9a-f]{128}$/;
 
@@ -38,13 +30,4 @@ export function verifyEvent(value: unknown): boolean {
   } catch {
     return false;
   }
-}
-
-/** A verified event that is not dated further ahead than {@link MAX_FUTURE_SECONDS}. */
-export function isTrustworthyEvent(
-  value: unknown,
-  now: number = Math.floor(Date.now() / 1000)
-): boolean {
-  if (!verifyEvent(value)) return false;
-  return (value as { created_at: number }).created_at <= now + MAX_FUTURE_SECONDS;
 }

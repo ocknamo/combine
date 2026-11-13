@@ -30,7 +30,7 @@ export function readContactEvent(
   data: unknown,
   subId: string,
   pubkey: string,
-  verify?: (event: unknown) => boolean
+  verify: (event: unknown) => boolean
 ): ContactList | null {
   return readReplaceableEvent(data, subId, pubkey, asContactList, verify);
 }

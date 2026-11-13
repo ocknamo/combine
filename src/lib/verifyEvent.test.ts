@@ -1,5 +1,8 @@
+import { schnorr } from '@noble/curves/secp256k1';
+import { sha256 } from '@noble/hashes/sha2';
+import { bytesToHex } from '@noble/hashes/utils';
 import { describe, expect, it } from 'vitest';
-import { isTrustworthyEvent, MAX_FUTURE_SECONDS, verifyEvent } from './verifyEvent';
+import { verifyEvent } from './verifyEvent';
 import { signTestEvent } from './verifyEvent.test-helpers';
 
 const signed = signTestEvent({
@@ -36,27 +39,26 @@ describe('verifyEvent', () => {
     ['no sig', { sig: undefined }],
     ['an uppercase id', { id: signed.id.toUpperCase() }],
     ['a short sig', { sig: signed.sig.slice(2) }],
-    ['a pubkey off the curve', { pubkey: 'f'.repeat(64) }],
     ['a fractional created_at', { created_at: 1.5 }],
     ['tags that are not an array', { tags: 'nope' }],
   ])('refuses an event with %s', (_label, change) => {
     expect(verifyEvent({ ...signed, ...change })).toBe(false);
   });
 
+  it('refuses a pubkey that is not on the curve, rather than throwing', () => {
+    const pubkey = 'f'.repeat(64);
+    expect(() => schnorr.Point.fromHex(`02${pubkey}`)).toThrow();
+    // A correct id for that pubkey, so the check gets as far as the signature.
+    const { kind, created_at, tags, content } = signed;
+    const id = bytesToHex(
+      sha256(new TextEncoder().encode(JSON.stringify([0, pubkey, created_at, kind, tags, content])))
+    );
+    expect(verifyEvent({ ...signed, pubkey, id })).toBe(false);
+  });
+
   it('refuses what is not an event at all', () => {
     expect(verifyEvent(null)).toBe(false);
     expect(verifyEvent('EVENT')).toBe(false);
     expect(verifyEvent({})).toBe(false);
-  });
-});
-
-describe('isTrustworthyEvent', () => {
-  it('allows a little clock skew and no more', () => {
-    expect(isTrustworthyEvent(signed, signed.created_at - MAX_FUTURE_SECONDS)).toBe(true);
-    expect(isTrustworthyEvent(signed, signed.created_at - MAX_FUTURE_SECONDS - 1)).toBe(false);
-  });
-
-  it('still requires the signature', () => {
-    expect(isTrustworthyEvent({ ...signed, content: '{}' }, signed.created_at)).toBe(false);
   });
 });

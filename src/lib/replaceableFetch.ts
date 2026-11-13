@@ -10,8 +10,6 @@
  * (`publishOwn.ts`) — only their base is fetched around it.
  */
 
-import { isTrustworthyEvent } from './verifyEvent';
-
 /** The minimum of the WebSocket API this needs, so a test can stand one in. */
 export interface QuerySocket {
   send(data: string): void;
@@ -63,8 +61,19 @@ export function readReplaceableEvent<T>(
   subId: string,
   pubkey: string,
   parse: ReplaceableKind<T>['parse'],
-  verify: (event: unknown) => boolean = isTrustworthyEvent
+  verify: (event: unknown) => boolean
 ): T | null {
+  const read = readFrame(data, subId, pubkey, parse);
+  return read && verify(read.raw) ? read.event : null;
+}
+
+/** The frame's event, shape-checked but not yet signature-checked. */
+function readFrame<T>(
+  data: unknown,
+  subId: string,
+  pubkey: string,
+  parse: ReplaceableKind<T>['parse']
+): { event: T; raw: unknown } | null {
   if (typeof data !== 'string') return null;
   let frame: unknown;
   try {
@@ -74,8 +83,7 @@ export function readReplaceableEvent<T>(
   }
   if (!Array.isArray(frame) || frame[0] !== 'EVENT' || frame[1] !== subId) return null;
   const event = parse(frame[2], pubkey);
-  // Parsed first: the shape checks are cheap, the signature is not.
-  return event !== null && verify(frame[2]) ? event : null;
+  return event === null ? null : { event, raw: frame[2] };
 }
 
 /** Whether a frame is the end of stored events for this subscription. */
@@ -104,7 +112,7 @@ function queryRelay<T>(
   spec: ReplaceableKind<T>,
   createSocket: (url: string) => QuerySocket,
   timeoutMs: number,
-  verify: ((event: unknown) => boolean) | undefined
+  verify: (event: unknown) => boolean
 ): Promise<RelayAnswer<T>> {
   return new Promise((resolve) => {
     let socket: QuerySocket;
@@ -149,10 +157,12 @@ function queryRelay<T>(
       }
     });
     socket.addEventListener('message', (ev) => {
-      const event = readReplaceableEvent(ev.data, subId, pubkey, spec.parse, verify);
-      if (event) {
-        best = spec.pickLatest([best, event]);
+      const read = readFrame(ev.data, subId, pubkey, spec.parse);
+      if (read) {
+        // Counted before the signature check: each check costs a hash and a
+        // curve operation, and a relay can send forgeries without end.
         seen += 1;
+        if (verify(read.raw)) best = spec.pickLatest([best, read.event]);
         if (seen >= MAX_EVENTS_PER_RELAY) finish(true, '');
         return;
       }
@@ -179,9 +189,11 @@ export async function fetchReplaceable<T>(
   const createSocket =
     options.createSocket ?? ((url: string) => new WebSocket(url) as unknown as QuerySocket);
   const timeoutMs = options.timeoutMs ?? FETCH_TIMEOUT_MS;
+  // Loaded here, not at startup: only a follow or a profile edit needs it.
+  const verify = options.verify ?? (await import('./verifyEvent')).verifyEvent;
 
   const answers = await Promise.all(
-    relays.map((relay) => queryRelay(relay, pubkey, spec, createSocket, timeoutMs, options.verify))
+    relays.map((relay) => queryRelay(relay, pubkey, spec, createSocket, timeoutMs, verify))
   );
 
   return {
