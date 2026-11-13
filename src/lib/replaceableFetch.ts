@@ -24,19 +24,25 @@ export interface FetchReplaceableOptions {
   createSocket?: (url: string) => QuerySocket;
   /** How long one relay gets to answer, connection included. */
   timeoutMs?: number;
+  /** Whether a relay's event is the author's own. Only a test replaces it. */
+  verify?: (event: unknown) => boolean;
 }
 
 export interface FetchReplaceableResult<T> {
   /** The newest event any relay held, or `null` when none held one. */
   event: T | null;
   /**
-   * Relays that reached EOSE — the ones whose silence *means* something. One in
-   * here has said it holds none; one that timed out has said nothing at all.
+   * Relays that reached EOSE, or were cut off after sending a genuine event — the
+   * ones whose silence *means* something. One in here has said it holds none or
+   * shown what it holds; one that timed out has said nothing at all.
    * Telling those apart is what separates "never set" from overwriting the
    * event of someone whose relays were briefly unreachable.
    */
   answered: string[];
-  /** Relays that failed, timed out, or closed before answering. */
+  /**
+   * Relays that failed, timed out, closed before answering, or sent only
+   * forgeries — and every relay, when the signature checker would not load.
+   */
   failed: { relay: string; reason: string }[];
 }
 
@@ -53,13 +59,25 @@ const FETCH_TIMEOUT_MS = 6000;
 /** Only so a relay that streams forever cannot hold the caller hostage. */
 const MAX_EVENTS_PER_RELAY = 10;
 
-/** This person's event out of one incoming frame, or `null`. */
+/** This person's event out of one incoming frame, or `null` — signature checked. */
 export function readReplaceableEvent<T>(
   data: unknown,
   subId: string,
   pubkey: string,
-  parse: ReplaceableKind<T>['parse']
+  parse: ReplaceableKind<T>['parse'],
+  verify: (event: unknown) => boolean
 ): T | null {
+  const read = readFrame(data, subId, pubkey, parse);
+  return read && verify(read.raw) ? read.event : null;
+}
+
+/** The frame's event, shape-checked but not yet signature-checked. */
+function readFrame<T>(
+  data: unknown,
+  subId: string,
+  pubkey: string,
+  parse: ReplaceableKind<T>['parse']
+): { event: T; raw: unknown } | null {
   if (typeof data !== 'string') return null;
   let frame: unknown;
   try {
@@ -68,7 +86,8 @@ export function readReplaceableEvent<T>(
     return null;
   }
   if (!Array.isArray(frame) || frame[0] !== 'EVENT' || frame[1] !== subId) return null;
-  return parse(frame[2], pubkey);
+  const event = parse(frame[2], pubkey);
+  return event === null ? null : { event, raw: frame[2] };
 }
 
 /** Whether a frame is the end of stored events for this subscription. */
@@ -96,7 +115,8 @@ function queryRelay<T>(
   pubkey: string,
   spec: ReplaceableKind<T>,
   createSocket: (url: string) => QuerySocket,
-  timeoutMs: number
+  timeoutMs: number,
+  verify: (event: unknown) => boolean
 ): Promise<RelayAnswer<T>> {
   return new Promise((resolve) => {
     let socket: QuerySocket;
@@ -141,11 +161,16 @@ function queryRelay<T>(
       }
     });
     socket.addEventListener('message', (ev) => {
-      const event = readReplaceableEvent(ev.data, subId, pubkey, spec.parse);
-      if (event) {
-        best = spec.pickLatest([best, event]);
+      if (settled) return;
+      const read = readFrame(ev.data, subId, pubkey, spec.parse);
+      if (read) {
+        // Counted before the signature check: each check costs a hash and a
+        // curve operation, and a relay can send forgeries without end.
         seen += 1;
-        if (seen >= MAX_EVENTS_PER_RELAY) finish(true, '');
+        if (verify(read.raw)) best = spec.pickLatest([best, read.event]);
+        // Cut off with nothing genuine, the relay has not said it holds none.
+        if (seen >= MAX_EVENTS_PER_RELAY)
+          finish(best !== null, '署名の正しくないイベントが続きました');
         return;
       }
       if (isEose(ev.data, subId)) finish(true, '');
@@ -153,6 +178,27 @@ function queryRelay<T>(
     socket.addEventListener('error', () => finish(false, '接続できませんでした'));
     socket.addEventListener('close', () => finish(false, '接続が閉じられました'));
   });
+}
+
+/**
+ * Loaded on demand, not at startup: only a follow or a profile edit needs it.
+ * `undefined` when the chunk will not load (stale after a deploy, or offline) or
+ * takes longer than a relay is given, so the caller always gets an answer.
+ */
+async function loadVerifier(timeoutMs: number): Promise<((event: unknown) => boolean) | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      import('./verifyEvent').then((m) => m.verifyEvent),
+      new Promise<undefined>((resolve) => {
+        timer = setTimeout(() => resolve(undefined), timeoutMs);
+      }),
+    ]);
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -171,9 +217,17 @@ export async function fetchReplaceable<T>(
   const createSocket =
     options.createSocket ?? ((url: string) => new WebSocket(url) as unknown as QuerySocket);
   const timeoutMs = options.timeoutMs ?? FETCH_TIMEOUT_MS;
+  if (relays.length === 0) return { event: null, answered: [], failed: [] };
+
+  const verify = options.verify ?? (await loadVerifier(timeoutMs));
+  if (!verify) {
+    // Nothing could be checked, so no relay's answer counts.
+    const reason = '署名を確認できませんでした';
+    return { event: null, answered: [], failed: relays.map((relay) => ({ relay, reason })) };
+  }
 
   const answers = await Promise.all(
-    relays.map((relay) => queryRelay(relay, pubkey, spec, createSocket, timeoutMs))
+    relays.map((relay) => queryRelay(relay, pubkey, spec, createSocket, timeoutMs, verify))
   );
 
   return {

@@ -41,9 +41,10 @@ const STORAGE_PREFIX = 'combine:contacts:';
 const BOOTSTRAP_QUORUM = 2;
 
 /**
- * Held to the same standard as a relay's answer — it feeds the same publish
- * path. An entry missing `created_at` makes `nextCreatedAt` produce `NaN`, and
- * every comparison against `NaN` is false, so it would be signed unchecked.
+ * Shape-checked like a relay's answer — it feeds the same publish path. An
+ * entry missing `created_at` makes `nextCreatedAt` produce `NaN`, and every
+ * comparison against `NaN` is false, so it would be signed unchecked. There is
+ * no signature to check: it is our own copy, kept without `id` / `sig`.
  */
 function readStored(pubkey: string): ContactList | null {
   try {

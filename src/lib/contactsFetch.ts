@@ -26,8 +26,13 @@ const CONTACTS: ReplaceableKind<ContactList> = {
 };
 
 /** This person's contact list out of one incoming frame, or `null`. */
-export function readContactEvent(data: unknown, subId: string, pubkey: string): ContactList | null {
-  return readReplaceableEvent(data, subId, pubkey, asContactList);
+export function readContactEvent(
+  data: unknown,
+  subId: string,
+  pubkey: string,
+  verify: (event: unknown) => boolean
+): ContactList | null {
+  return readReplaceableEvent(data, subId, pubkey, asContactList, verify);
 }
 
 /** Ask every relay for one person's contact list. Never rejects. */
