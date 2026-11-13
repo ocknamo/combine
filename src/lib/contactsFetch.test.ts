@@ -298,10 +298,8 @@ describe('signatures', () => {
 
   it('stops reading a relay that sends forgeries without end', async () => {
     const { create, all } = sockets();
-    const pending = fetchContacts(TEST_PUBKEY, ['wss://hostile'], {
-      createSocket: create,
-      verify: () => false,
-    });
+    const verify = vi.fn(() => false);
+    const pending = fetchContacts(TEST_PUBKEY, ['wss://hostile'], { createSocket: create, verify });
     const hostile = all.get('wss://hostile') as FakeSocket;
     hostile.emit('open');
     for (let i = 0; i < 50; i++) {
@@ -315,10 +313,34 @@ describe('signatures', () => {
     }
 
     const result = await pending;
-    expect(result.event).toBeNull();
+    expect(verify).toHaveBeenCalledTimes(10);
     expect(hostile.closed).toBe(1);
-    // Closed after the tenth, so the other forty were never checked.
-    expect(hostile.sent.at(-1)).toBe(JSON.stringify(['CLOSE', hostile.subId]));
+    // Cut off with nothing genuine is not "holds none": it must not count
+    // toward deciding that a new list should be started.
+    expect(result.event).toBeNull();
+    expect(result.answered).toEqual([]);
+    expect(result.failed.map((f) => f.relay)).toEqual(['wss://hostile']);
+  });
+
+  it('still counts a relay that sent something genuine before the cut-off', async () => {
+    const { create, all } = sockets();
+    const genuine = signTestEvent({ kind: 3, created_at: now, content: '', tags: [['p', ALICE]] });
+    const pending = fetchContacts(TEST_PUBKEY, ['wss://r'], {
+      createSocket: create,
+      verify: (e) => (e as { id?: string }).id === genuine.id,
+    });
+    const socket = all.get('wss://r') as FakeSocket;
+    socket.emit('open');
+    socket.emit('message', { data: JSON.stringify(['EVENT', socket.subId, genuine]) });
+    for (let i = 0; i < 9; i++) {
+      socket.emit('message', {
+        data: JSON.stringify(['EVENT', socket.subId, { ...genuine, id: `${i}`.padStart(64, '0') }]),
+      });
+    }
+
+    const result = await pending;
+    expect(result.event?.tags).toEqual([['p', ALICE]]);
+    expect(result.answered).toEqual(['wss://r']);
   });
 
   it('checks signatures when the caller does not pass a checker', async () => {

@@ -157,13 +157,16 @@ function queryRelay<T>(
       }
     });
     socket.addEventListener('message', (ev) => {
+      if (settled) return;
       const read = readFrame(ev.data, subId, pubkey, spec.parse);
       if (read) {
         // Counted before the signature check: each check costs a hash and a
         // curve operation, and a relay can send forgeries without end.
         seen += 1;
         if (verify(read.raw)) best = spec.pickLatest([best, read.event]);
-        if (seen >= MAX_EVENTS_PER_RELAY) finish(true, '');
+        // Cut off with nothing genuine, the relay has not said it holds none.
+        if (seen >= MAX_EVENTS_PER_RELAY)
+          finish(best !== null, '署名の正しくないイベントが続きました');
         return;
       }
       if (isEose(ev.data, subId)) finish(true, '');
@@ -171,6 +174,18 @@ function queryRelay<T>(
     socket.addEventListener('error', () => finish(false, '接続できませんでした'));
     socket.addEventListener('close', () => finish(false, '接続が閉じられました'));
   });
+}
+
+/**
+ * Loaded on demand, not at startup: only a follow or a profile edit needs it.
+ * `undefined` when the chunk will not load (stale after a deploy, or offline).
+ */
+async function loadVerifier(): Promise<((event: unknown) => boolean) | undefined> {
+  try {
+    return (await import('./verifyEvent')).verifyEvent;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -189,8 +204,14 @@ export async function fetchReplaceable<T>(
   const createSocket =
     options.createSocket ?? ((url: string) => new WebSocket(url) as unknown as QuerySocket);
   const timeoutMs = options.timeoutMs ?? FETCH_TIMEOUT_MS;
-  // Loaded here, not at startup: only a follow or a profile edit needs it.
-  const verify = options.verify ?? (await import('./verifyEvent')).verifyEvent;
+  if (relays.length === 0) return { event: null, answered: [], failed: [] };
+
+  const verify = options.verify ?? (await loadVerifier());
+  if (!verify) {
+    // Nothing could be checked, so no relay's answer counts.
+    const reason = '署名を確認できませんでした';
+    return { event: null, answered: [], failed: relays.map((relay) => ({ relay, reason })) };
+  }
 
   const answers = await Promise.all(
     relays.map((relay) => queryRelay(relay, pubkey, spec, createSocket, timeoutMs, verify))
